@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>회전 + 이동 시뮬레이션</title>
+<style>
+  body {
+    font-family: sans-serif;
+    text-align: center;
+    background: #1e1e1e;
+    color: #e0e0e0;
+    margin: 0;
+    padding: 20px;
+  }
+  canvas {
+    border: 1px solid #ccc;
+    background: #2e2e2e;
+    margin-top: 10px;
+  }
+  .controls {
+    margin-top: 15px;
+  }
+  label {
+    margin: 0 10px;
+  }
+  input {
+    background: #333;
+    color: #eee;
+    border: 1px solid #555;
+    padding: 4px 6px;
+    border-radius: 4px;
+  }
+  button {
+    background: #444;
+    color: #fff;
+    border: 1px solid #666;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #666;
+  }
+  #answer {
+    margin-top: 20px;
+    font-size: 1.1em;
+    color: #ffd700;
+    white-space: pre-line;
+  }
+</style>
+</head>
+<body>
+<h2>회전 + XY 이동 시뮬레이션</h2>
+
+<canvas id="panel" width="800" height="600"></canvas>
+
+<div class="controls">
+  <label>회전각(°): <input type="number" id="angle" value="0"></label>
+  <label>이동 X: <input type="number" id="moveX" value="0"></label>
+  <label>이동 Y: <input type="number" id="moveY" value="0"></label>
+  <button onclick="applyTransform()">적용</button>
+</div>
+
+<div class="controls">
+  <label>중심 X: <input type="number" id="centerX" value="400"></label>
+  <label>중심 Y: <input type="number" id="centerY" value="300"></label>
+  <button onclick="randomize()">랜덤</button>
+</div>
+
+<p id="answer"></p>
+
+<script>
+const canvas = document.getElementById("panel");
+const ctx = canvas.getContext("2d");
+const W = canvas.width, H = canvas.height;
+
+let A, B, targetA, targetB, center;
+
+function randomPair(distance) {
+  while (true) {
+    const a = { x: Math.random() * W, y: Math.random() * H };
+    const angle = Math.random() * Math.PI * 2;
+    const b = { x: a.x + Math.cos(angle) * distance, y: a.y + Math.sin(angle) * distance };
+    if (a.x > 0 && a.x < W && a.y > 0 && a.y < H &&
+        b.x > 0 && b.x < W && b.y > 0 && b.y < H) {
+      return [a, b];
+    }
+  }
+}
+
+function randomize() {
+  const dist1 = 100 + Math.random() * 50;
+  const dist2 = 100 + Math.random() * 50;
+  [A, B] = randomPair(dist1);
+  [targetA, targetB] = randomPair(dist2);
+  recalcAnswer();
+  draw();
+}
+
+function recalcAnswer() {
+  const cx = parseFloat(document.getElementById("centerX").value);
+  const cy = parseFloat(document.getElementById("centerY").value);
+  center = { x: cx, y: cy };
+
+  const result = calculateAnswer(A, B, targetA, targetB, center);
+
+  document.getElementById("answer").innerText =
+    `정답 회전각: ${result.angleDeg.toFixed(2)}°, 이동X: ${result.moveX.toFixed(2)}, 이동Y: ${result.moveY.toFixed(2)}\n` +
+    `오차 거리: ${result.errorDist.toFixed(2)}px`;
+}
+
+function calculateAnswer(A, B, targetA, targetB, center) {
+  const midAB = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+  const midT = { x: (targetA.x + targetB.x) / 2, y: (targetA.y + targetB.y) / 2 };
+
+  const v1 = { x: B.x - A.x, y: B.y - A.y };
+  const v2 = { x: targetB.x - targetA.x, y: targetB.y - targetA.y };
+  const dot = v1.x * v2.x + v1.y * v2.y;
+  const det = v1.x * v2.y - v1.y * v2.x;
+  const angleRad = Math.atan2(det, dot);
+  const angleDeg = angleRad * 180 / Math.PI;
+
+  const movedMid = rotatePoint(midAB, angleRad, center);
+  const moveX = midT.x - movedMid.x;
+  const moveY = midT.y - movedMid.y;
+
+  const currentMid = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+  const errorX = currentMid.x - midT.x;
+  const errorY = currentMid.y - midT.y;
+  const errorDist = Math.sqrt(errorX * errorX + errorY * errorY);
+
+  return {
+    angleDeg,
+    moveX,
+    moveY,
+    errorDist
+  };
+}
+
+function rotatePoint(p, angle, origin) {
+  const s = Math.sin(angle), c = Math.cos(angle);
+  const x = p.x - origin.x;
+  const y = p.y - origin.y;
+  return {
+    x: origin.x + x * c - y * s,
+    y: origin.y + x * s + y * c
+  };
+}
+
+function applyTransform() {
+  const angle = parseFloat(document.getElementById("angle").value) * Math.PI / 180;
+  const moveX = parseFloat(document.getElementById("moveX").value);
+  const moveY = parseFloat(document.getElementById("moveY").value);
+
+  A = rotatePoint(A, angle, center);
+  B = rotatePoint(B, angle, center);
+
+  A.x += moveX; A.y += moveY;
+  B.x += moveX; B.y += moveY;
+
+  recalcAnswer();
+  draw();
+
+  document.getElementById("angle").value = 0;
+  document.getElementById("moveX").value = 0;
+  document.getElementById("moveY").value = 0;
+}
+
+function drawPoint(p, color, label) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.fillText(label, p.x + 8, p.y - 8);
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  ctx.fillStyle = "blue";
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillText("CENTER", center.x + 10, center.y + 4);
+
+  ctx.strokeStyle = "white";
+  ctx.beginPath();
+  ctx.moveTo(A.x, A.y);
+  ctx.lineTo(B.x, B.y);
+  ctx.stroke();
+
+  ctx.strokeStyle = "#888";
+  ctx.beginPath();
+  ctx.moveTo(targetA.x, targetA.y);
+  ctx.lineTo(targetB.x, targetB.y);
+  ctx.stroke();
+
+  drawPoint(A, "red", "A");
+  drawPoint(B, "red", "B");
+  drawPoint(targetA, "lime", "TargetA");
+  drawPoint(targetB, "lime", "TargetB");
+}
+
+document.getElementById("centerX").addEventListener("input", () => {
+  recalcAnswer();
+  draw();
+});
+document.getElementById("centerY").addEventListener("input", () => {
+  recalcAnswer();
+  draw();
+});
+
+randomize();
+</script>
+</body>
+</html>
