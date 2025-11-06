@@ -1,0 +1,180 @@
+<!DOCTYPE html> <html lang="ko"> <head> <meta charset="UTF-8" /> <title>RANSAC 오차 계산 비교</title> 
+<style> body { margin: 0; background-color: black; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: white; font-family: sans-serif; } canvas { background-color: black; border: 1px solid #444; } .controls { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; } button { padding: 8px 16px; font-size: 16px; cursor: pointer; } input { width: 60px; padding: 6px; font-size: 14px; text-align: center; } label { font-size: 14px; } .status { margin-top: 10px; font-size: 16px; color: lightgreen; } </style> </head> <body> <canvas id="canvas" width="800" height="600"></canvas> <div class="controls"> <button id="runHalley">Halley</button> <button id="runEllipse">타원근사</button> <button id="runYDistance">Y값 비교</button> <button id="runFastParabola">fast_parabola_distance</button> <button id="regenerate">랜덤생성</button> <label>반복횟수: <input type="number" id="iterations" value="200" min="10" max="1000" /></label> <label>거리기준: <input type="number" id="threshold" value="30" min="1" max="200" /></label> </div> <div class="status" id="inlierCount">Inliers: 0</div> <div class="status" id="elapsedTime">판별시간: 0 ms</div> <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script> <script> const canvas = document.getElementById('canvas'); const ctx = canvas.getContext('2d'); const runHalleyBtn = document.getElementById('runHalley'); const runEllipseBtn = document.getElementById('runEllipse'); const runYDistanceBtn = document.getElementById('runYDistance'); const runFastParabolaBtn = document.getElementById('runFastParabola'); const regenerateBtn = document.getElementById('regenerate'); const iterationsInput = document.getElementById('iterations'); const thresholdInput = document.getElementById('threshold'); const inlierDisplay = document.getElementById('inlierCount'); const timeDisplay = document.getElementById('elapsedTime');
+
+let points = [];
+let inlierPoints = [];
+let trueFunc = () => 0;
+
+function generatePoints() {
+  const a = (Math.random() - 0.5) * 0.02;
+  const b = (Math.random() - 0.5) * 2;
+  const c = Math.random() * canvas.height / 2;
+  trueFunc = (x) => a * x * x + b * x + c;
+
+  points = [];
+  for (let i = 0; i < 600; i++) {
+    const x = Math.random() * canvas.width;
+    const y = trueFunc(x);
+    const noise = (Math.random() - 0.5) * 80;
+    const isOutlier = Math.random() < 0.25;
+    const outlierNoise = isOutlier ? (Math.random() - 0.5) * 300 : 0;
+    points.push({ x, y: y + noise + outlierNoise });
+  }
+  drawPoints();
+}
+
+function drawPoints() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (const p of points) {
+    ctx.fillStyle = 'white';
+    ctx.fillRect(p.x, p.y, 2, 2);
+  }
+  for (const p of inlierPoints) {
+    ctx.fillStyle = 'lime';
+    ctx.fillRect(p.x, p.y, 3, 3);
+  }
+}
+
+function fitQuadratic(p1, p2, p3) {
+  const X = [p1.x, p2.x, p3.x];
+  const Y = [p1.y, p2.y, p3.y];
+  const A = [
+    [X[0] * X[0], X[0], 1],
+    [X[1] * X[1], X[1], 1],
+    [X[2] * X[2], X[2], 1],
+  ];
+  const inv = math.inv(A);
+  return math.multiply(inv, Y);
+}
+
+function calcErrorHalley(coeffs, point) {
+  const [a, b, c] = coeffs;
+  const { x: x0, y: y0 } = point;
+
+  function dF(x) {
+    const fx = a * x * x + b * x + c;
+    const dfx = 2 * a * x + b;
+    return 2 * (x - x0) + 2 * (fx - y0) * dfx;
+  }
+
+  function ddF(x) {
+    const fx = a * x * x + b * x + c;
+    const dfx = 2 * a * x + b;
+    const ddfx = 2 * a;
+    return 2 + 2 * (dfx ** 2 + (fx - y0) * ddfx);
+  }
+
+  function dddF(x) {
+    const dfx = 2 * a * x + b;
+    const ddfx = 2 * a;
+    return 4 * a * dfx + 2 * ddfx * ddfx;
+  }
+
+  let x = x0;
+  for (let i = 0; i < 10; i++) {
+    const f1 = dF(x);
+    const f2 = ddF(x);
+    const f3 = dddF(x);
+    const denom = f2 - (f1 * f3) / (2 * f2);
+    if (Math.abs(denom) < 1e-6) break;
+    const delta = f1 / denom;
+    x = x - delta;
+    if (Math.abs(delta) < 1e-6) break;
+  }
+
+  const fx = a * x * x + b * x + c;
+  return Math.hypot(x - x0, fx - y0);
+}
+
+function calcErrorEllipse(coeffs, point) {
+  const [a, b, c] = coeffs;
+  const fx = a * point.x * point.x + b * point.x + c;
+  const dy = fx - point.y;
+  return Math.sqrt(dy * dy * 0.5);
+}
+
+function calcErrorYDistance(coeffs, point) {
+  const [a, b, c] = coeffs;
+  const fy = a * point.x * point.x + b * point.x + c;
+  return Math.abs(fy - point.y);
+}
+
+// fast_parabola_distance 계산 함수 (게임에서 주로 쓰이는 방식, 수직 거리 + 기울기 보정 근사, 속도 개선 버전)
+function calcErrorFastParabola(coeffs, point) {
+  const [a, b, c] = coeffs;
+  const x = point.x;
+  const y = point.y;
+  const yParabola = a * x * x + b * x + c;
+  const dy = Math.abs(yParabola - y);
+  if (dy < 0.0001) return 0;
+  const slope = 2 * a * x + b;
+  const correction = dy * Math.abs(slope) / (1 + Math.abs(slope));
+  return dy + correction;
+}
+
+function ransac(iter, threshold, errorFunc) {
+  let bestModel = null;
+  let bestInliers = [];
+
+  for (let i = 0; i < iter; i++) {
+    const sample = [];
+    while (sample.length < 3) {
+      const rand = points[Math.floor(Math.random() * points.length)];
+      if (!sample.includes(rand)) sample.push(rand);
+    }
+
+    const model = fitQuadratic(...sample);
+    const inliers = points.filter(p => errorFunc(model, p) < threshold);
+
+    if (inliers.length > bestInliers.length) {
+      bestModel = model;
+      bestInliers = inliers;
+    }
+  }
+
+  return { model: bestModel, inliers: bestInliers };
+}
+
+function drawCurve(coeffs, color = 'red') {
+  ctx.beginPath();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  for (let x = 0; x <= canvas.width; x++) {
+    const y = coeffs[0] * x * x + coeffs[1] * x + coeffs[2];
+    if (x === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+}
+
+function runRANSAC(errorFunc) {
+  const iter = parseInt(iterationsInput.value) || 200;
+  const threshold = parseFloat(thresholdInput.value) || 30;
+
+  const start = performance.now();
+  const { model, inliers } = ransac(iter, threshold, errorFunc);
+  const end = performance.now();
+
+  inlierPoints = inliers;
+  drawPoints();
+  drawCurve(model, 'red');
+
+  inlierDisplay.textContent = `Inliers: ${inliers.length}`;
+  timeDisplay.textContent = `판별시간: ${Math.round(end - start)} ms`;
+}
+
+runHalleyBtn.addEventListener('click', () => runRANSAC(calcErrorHalley));
+runEllipseBtn.addEventListener('click', () => runRANSAC(calcErrorEllipse));
+runYDistanceBtn.addEventListener('click', () => runRANSAC(calcErrorYDistance));
+runFastParabolaBtn.addEventListener('click', () => runRANSAC(calcErrorFastParabola));
+
+regenerateBtn.addEventListener('click', () => {
+  inlierPoints = [];
+  generatePoints();
+  inlierDisplay.textContent = 'Inliers: 0';
+  timeDisplay.textContent = '판별시간: 0 ms';
+});
+
+generatePoints();
+
+</script> </body> </html>
