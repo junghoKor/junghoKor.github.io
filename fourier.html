@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>푸리에 급수 폐곡선 그리기</title>
+    <style>
+        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f0f0; }
+        #container { position: relative; }
+        canvas { border: 1px solid #000; background: #fff; }
+        #controls { position: absolute; top: 10px; right: 10px; }
+        input { width: 50px; margin-right: 5px; }
+        button { margin-right: 5px; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="canvas" width="800" height="600"></canvas>
+        <div id="controls">
+            <input type="number" id="depth" min="1" max="200" value="100">
+            <button id="start">시작</button>
+            <button id="clear">CLEAR</button>
+        </div>
+    </div>
+    <script>
+        // Canvas와 컨텍스트 초기화
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('start');
+        const clearBtn = document.getElementById('clear');
+        const depthInput = document.getElementById('depth');
+
+        // 전역 변수: 사용자 입력 점, 푸리에 계수, 애니메이션 상태 등
+        let points = []; // 사용자 그린 점들 {x, y}
+        let coeffs = []; // 푸리에 계수 배열
+        let c0 = null; // DC 성분 (평균 위치)
+        let isDrawing = false; // 그리기 중 여부
+        let animating = false; // 애니메이션 중 여부
+        let path = []; // 빨간색 경로 배열
+        let time = 0; // 애니메이션 시간 (0~1)
+        let animStartTime; // 애니메이션 시작 시간
+        const duration = 20000; // 애니메이션 지속 시간 (밀리초)
+        const minDist = 5; // 점 추가 최소 거리 (픽셀)
+        const sampleCount = 1000; // 재샘플링할 점 수 (균등 간격, 고정값으로 최적화)
+
+        // 마우스 이벤트 핸들러: 그림 그리기 시작
+        canvas.addEventListener('mousedown', (e) => {
+            if (animating) return; // 애니메이션 중에는 그리기 방지
+            isDrawing = true;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            points = [{x, y}]; // 점 배열 초기화
+            ctx.beginPath();
+            ctx.moveTo(x, y); // 그리기 시작
+        });
+
+        // 마우스 이벤트 핸들러: 그림 그리기 중
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const last = points[points.length - 1];
+            const dist = Math.sqrt((x - last.x)**2 + (y - last.y)**2);
+            if (dist > minDist) { // 최소 거리 초과 시 점 추가 (샘플링 최적화)
+                points.push({x, y});
+                ctx.lineTo(x, y);
+                ctx.strokeStyle = 'black';
+                ctx.stroke(); // 실시간 선 그리기
+            }
+        });
+
+        // 마우스 이벤트 핸들러: 그림 그리기 종료 및 폐곡선 연결
+        canvas.addEventListener('mouseup', () => {
+            if (isDrawing && points.length > 1) {
+                // 시작점과 끝점을 연결하여 폐곡선 생성
+                points.push(points[0]);
+                ctx.lineTo(points[0].x, points[0].y);
+                ctx.strokeStyle = 'black';
+                ctx.stroke();
+            }
+            isDrawing = false;
+        });
+
+        // 시작 버튼 클릭 핸들러: 푸리에 계산 및 애니메이션 시작
+        startBtn.addEventListener('click', () => {
+            if (points.length < 2 || animating) return;
+            animating = true;
+            const depth = parseInt(depthInput.value) || 100; // 깊이 입력값 처리
+            const resampledPoints = resamplePoints(points, sampleCount); // 균등 재샘플링
+            computeFourier(depth, resampledPoints); // 푸리에 계수 계산
+            animStartTime = performance.now();
+            path = []; // 경로 초기화
+            requestAnimationFrame(animate); // 애니메이션 프레임 요청
+        });
+
+        // CLEAR 버튼 클릭 핸들러: 캔버스 및 상태 초기화
+        clearBtn.addEventListener('click', () => {
+            animating = false;
+            isDrawing = false;
+            points = [];
+            coeffs = [];
+            c0 = null;
+            path = [];
+            time = 0;
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // 캔버스 지우기
+        });
+
+        // 재샘플링 함수: 원본 점을 균등 간격으로 재샘플링 (폐곡선 유지)
+        // 최적화: 세그먼트 길이 미리 계산, 루프 간소화
+        function resamplePoints(originalPoints, numSamples) {
+            if (originalPoints.length < 2) return originalPoints;
+
+            // 총 길이와 세그먼트 누적 길이 계산
+            let totalLength = 0;
+            const lengths = new Array(originalPoints.length - 1);
+            for (let i = 0; i < lengths.length; i++) {
+                const dx = originalPoints[i + 1].x - originalPoints[i].x;
+                const dy = originalPoints[i + 1].y - originalPoints[i].y;
+                lengths[i] = Math.sqrt(dx * dx + dy * dy);
+                totalLength += lengths[i];
+            }
+
+            // 균등 간격 재샘플링
+            const resampled = [];
+            const interval = totalLength / numSamples;
+            let currentLength = 0;
+            let segIndex = 0;
+            let cumLength = 0;
+
+            for (let i = 0; i < numSamples; i++) {
+                const targetLength = (i * totalLength) / numSamples;
+                while (segIndex < lengths.length && cumLength + lengths[segIndex] < targetLength) {
+                    cumLength += lengths[segIndex++];
+                }
+                const t = (targetLength - cumLength) / lengths[segIndex];
+                const p1 = originalPoints[segIndex];
+                const p2 = originalPoints[segIndex + 1];
+                const x = p1.x + t * (p2.x - p1.x);
+                const y = p1.y + t * (p2.y - p1.y);
+                resampled.push({x, y});
+            }
+            resampled.push(resampled[0]); // 폐곡선 보장 (마지막 점 = 첫 점)
+            return resampled;
+        }
+
+        // 푸리에 계수 계산 함수
+        // 최적화: cos/sin 캐싱, phase 계산 제거 (사용되지 않음)
+        function computeFourier(depth, sampledPoints) {
+            const M = sampledPoints.length;
+            const complexPoints = sampledPoints.map(p => ({ re: p.x, im: p.y })); // 복소수 변환
+
+            coeffs = [];
+            for (let k = -depth; k <= depth; k++) {
+                let re = 0, im = 0;
+                for (let n = 0; n < M; n++) {
+                    const phi = 2 * Math.PI * k * n / M;
+                    const cosPhi = Math.cos(phi); // cos 캐싱
+                    const sinPhi = Math.sin(phi); // sin 캐싱
+                    re += complexPoints[n].re * cosPhi + complexPoints[n].im * sinPhi;
+                    im += complexPoints[n].im * cosPhi - complexPoints[n].re * sinPhi;
+                }
+                re /= M;
+                im /= M;
+                coeffs.push({ freq: k, re, im }); // amp 지연 계산
+            }
+
+            // c0 분리
+            c0 = coeffs.find(c => c.freq === 0);
+            coeffs = coeffs.filter(c => c.freq !== 0);
+
+            // amp 계산 후 내림차순 정렬 (큰 원부터)
+            coeffs.forEach(c => {
+                c.amp = Math.sqrt(c.re * c.re + c.im * c.im);
+            });
+            coeffs.sort((a, b) => b.amp - a.amp);
+        }
+
+        // 애니메이션 함수: 에피사이클 그리기
+        // 최적화: time 계산 효율화, 루프 내 반복 최소화, phase 제거 (이중 적용 방지)
+        function animate() {
+            if (!animating) return;
+            const elapsed = performance.now() - animStartTime;
+            time = Math.min(elapsed / duration, 1);
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // 프레임 클리어
+
+            // 원본 검은색 선 그리기 (폐곡선)
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            const pointsLen = points.length; // 길이 캐싱
+            for (let i = 1; i < pointsLen; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+            ctx.closePath();
+            ctx.strokeStyle = 'black';
+            ctx.stroke();
+
+            // 에피사이클 시작: c0 위치
+            let x = c0.re;
+            let y = c0.im;
+
+            // c0 작은 점 표시
+            ctx.beginPath();
+            ctx.arc(x, y, 2, 0, 2 * Math.PI);
+            ctx.fillStyle = 'gray';
+            ctx.fill();
+
+            // 에피사이클 루프: 각 계수 적용
+            const coeffsLen = coeffs.length; // 길이 캐싱
+            for (let i = 0; i < coeffsLen; i++) {
+                const c = coeffs[i];
+                const prevX = x;
+                const prevY = y;
+                const theta = 2 * Math.PI * c.freq * time; // phase 제거 (이미 re/im에 포함)
+                const cosTheta = Math.cos(theta); // cos 캐싱
+                const sinTheta = Math.sin(theta); // sin 캐싱
+                x += c.re * cosTheta - c.im * sinTheta;
+                y += c.re * sinTheta + c.im * cosTheta;
+
+                // 회색 원 그리기
+                ctx.beginPath();
+                ctx.arc(prevX, prevY, c.amp, 0, 2 * Math.PI);
+                ctx.strokeStyle = 'gray';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                // 파란색 선 그리기
+                ctx.beginPath();
+                ctx.moveTo(prevX, prevY);
+                ctx.lineTo(x, y);
+                ctx.strokeStyle = 'blue';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            // 빨간색 경로 추가 및 그리기
+            path.push({x, y});
+            ctx.beginPath();
+            const pathLen = path.length; // 길이 캐싱
+            if (pathLen > 0) {
+                ctx.moveTo(path[0].x, path[0].y);
+                for (let i = 1; i < pathLen; i++) {
+                    ctx.lineTo(path[i].x, path[i].y);
+                }
+            }
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            if (time < 1) {
+                requestAnimationFrame(animate); // 다음 프레임 요청
+            } else {
+                animating = false; // 애니메이션 종료
+            }
+        }
+    </script>
+</body>
+</html>
