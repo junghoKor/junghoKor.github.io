@@ -1,25 +1,49 @@
-<!DOCTYPE html> <html lang="ko"> <head> <meta charset="UTF-8" /> <title>RANSAC 오차 계산 비교</title> 
-<style> body { margin: 0; background-color: black; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: white; font-family: sans-serif; } canvas { background-color: black; border: 1px solid #444; } .controls { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; } button { padding: 8px 16px; font-size: 16px; cursor: pointer; } input { width: 60px; padding: 6px; font-size: 14px; text-align: center; } label { font-size: 14px; } .status { margin-top: 10px; font-size: 16px; color: lightgreen; } </style> </head> <body> <canvas id="canvas" width="800" height="600"></canvas> <div class="controls"> <button id="runHalley">Halley</button> <button id="runEllipse">타원근사</button> <button id="runYDistance">Y값 비교</button> <button id="runFastParabola">fast_parabola_distance</button> <button id="regenerate">랜덤생성</button> <label>반복횟수: <input type="number" id="iterations" value="200" min="10" max="1000" /></label> <label>거리기준: <input type="number" id="threshold" value="30" min="1" max="200" /></label> </div> <div class="status" id="inlierCount">Inliers: 0</div> <div class="status" id="elapsedTime">판별시간: 0 ms</div> <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script> <script> const canvas = document.getElementById('canvas'); const ctx = canvas.getContext('2d'); const runHalleyBtn = document.getElementById('runHalley'); const runEllipseBtn = document.getElementById('runEllipse'); const runYDistanceBtn = document.getElementById('runYDistance'); const runFastParabolaBtn = document.getElementById('runFastParabola'); const regenerateBtn = document.getElementById('regenerate'); const iterationsInput = document.getElementById('iterations'); const thresholdInput = document.getElementById('threshold'); const inlierDisplay = document.getElementById('inlierCount'); const timeDisplay = document.getElementById('elapsedTime');
+<!DOCTYPE html> <html lang="ko"> <head> <meta charset="UTF-8" /> <title>RANSAC</title> <style> body { margin: 0; background-color: black; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: white; font-family: sans-serif; } canvas { background-color: black; border: 1px solid #444; } .controls { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; } button { padding: 8px 16px; font-size: 16px; cursor: pointer; } input { width: 60px; padding: 6px; font-size: 14px; text-align: center; } label { font-size: 14px; } .status { margin-top: 10px; font-size: 16px; color: lightgreen; } </style> </head> <body> <h1 style="color: white; text-align: center; margin-bottom: 10px; font-family: sans-serif;">2차함수 RANSAC 시뮬레이션</h1> <canvas id="canvas" width="800" height="600"></canvas> <div class="controls"> <button id="runHalley">Halley방식</button> <button id="runEllipse">타원근사</button> <button id="runYDistance">단순Y값</button> <button id="runFastParabola">fast_parabola_distance</button> <button id="regenerate">랜덤생성</button> <label>반복횟수: <input type="number" id="iterations" value="1000" min="10" max="10000" /></label> <label>Inlier거리: <input type="number" id="threshold" value="4" min="1" max="100" /></label> </div> <div class="status" id="inlierCount">Inliers: 0</div> <div class="status" id="elapsedTime">판별시간: 0 ms</div> <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script> <script> const canvas = document.getElementById('canvas'); const ctx = canvas.getContext('2d'); const runHalleyBtn = document.getElementById('runHalley'); const runEllipseBtn = document.getElementById('runEllipse'); const runYDistanceBtn = document.getElementById('runYDistance'); const runFastParabolaBtn = document.getElementById('runFastParabola'); const regenerateBtn = document.getElementById('regenerate'); const iterationsInput = document.getElementById('iterations'); const thresholdInput = document.getElementById('threshold'); const inlierDisplay = document.getElementById('inlierCount'); const timeDisplay = document.getElementById('elapsedTime');
 
 let points = [];
 let inlierPoints = [];
 let trueFunc = () => 0;
 
 function generatePoints() {
-  const a = (Math.random() - 0.5) * 0.02;
-  const b = (Math.random() - 0.5) * 2;
-  const c = Math.random() * canvas.height / 2;
+  points = [];
+  const canvasWidth = canvas.width;
+  const canvasHeight = canvas.height;
+
+  // 랜덤 2차 함수 계수 생성 (a는 0.0005~0.002, b는 -1~1, c는 100~400)
+  const a = 0.0005 + Math.random() * 0.0015;
+  const b = -1 + Math.random() * 2;
+  const c = 100 + Math.random() * 300;
+
+  // 정답 곡선 점 100개 생성 (점 수 감소)
+  for (let i = 0; i < 100; i++) {
+    const x = (i / 99) * canvasWidth;
+    const y = a * x * x + b * x + c;
+    if (y > 1 && y < canvasHeight) {
+      points.push({ x, y, isTrue: true });
+    }
+  }
+
+  // 정답 곡선 주변 노이즈 점 400개 생성 (노이즈 점 수 증가)
+  for (let i = 0; i < 400; i++) {
+    const baseX = Math.random() * canvasWidth;
+    const baseY = a * baseX * baseX + b * baseX + c;
+    const noiseX = baseX + (Math.random() * 40 - 20);
+    const noiseY = baseY + (Math.random() * 60 - 30);
+    if (noiseX >= 0 && noiseX <= canvasWidth && noiseY > 1 && noiseY < canvasHeight) {
+      points.push({ x: noiseX, y: noiseY, isTrue: false });
+    }
+  }
+
+  // 캔버스 전체에 노이즈 점 300개 생성 (y>1 필터링)
+  for (let i = 0; i < 300; i++) {
+    const x = Math.random() * canvasWidth;
+    const y = Math.random() * (canvasHeight - 1) + 1;
+    points.push({ x, y, isTrue: false });
+  }
+
+  // trueFunc 함수 업데이트 (정답 2차 함수)
   trueFunc = (x) => a * x * x + b * x + c;
 
-  points = [];
-  for (let i = 0; i < 600; i++) {
-    const x = Math.random() * canvas.width;
-    const y = trueFunc(x);
-    const noise = (Math.random() - 0.5) * 80;
-    const isOutlier = Math.random() < 0.25;
-    const outlierNoise = isOutlier ? (Math.random() - 0.5) * 300 : 0;
-    points.push({ x, y: y + noise + outlierNoise });
-  }
   drawPoints();
 }
 
