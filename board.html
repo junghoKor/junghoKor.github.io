@@ -228,24 +228,25 @@
       }
     }
 
-    window.deleteEntry = (key) => {
-      const inputPw = document.getElementById(`pw-${key}`).value.trim();
-      if (!inputPw) {
-        alert("비밀번호를 입력해주세요.");
-        return;
-      }
+window.deleteEntry = (key) => {
+  const inputPw = document.getElementById(`pw-${key}`).value.trim();
+  if (!inputPw) {
+    alert("비밀번호를 입력해주세요.");
+    return;
+  }
 
-      const entryRef = ref(db, `guestbook/${key}`);
+  const entryRef = ref(db, `guestbook/${key}`);
 
-      // 먼저 비밀번호를 update로 전송
-      update(entryRef, { password: inputPw })
-        .then(() => {
-          remove(entryRef)
-            .then(() => alert("삭제되었습니다."))
-            .catch(() => alert("삭제 중 오류가 발생했습니다."));
-        })
-        .catch(() => alert("비밀번호가 틀렸거나 삭제 권한이 없습니다."));
-    };
+  update(entryRef, {
+    name: null,
+    message: null,
+    password: inputPw
+  })
+    .then(() => alert("삭제되었습니다."))
+    .catch(() => alert("비밀번호가 틀렸거나 삭제 권한이 없습니다."));
+};
+
   </script>
 </body>
 </html>
+
