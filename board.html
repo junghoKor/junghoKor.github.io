@@ -2,50 +2,159 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>방명록</title>
+  <title>Guestbook</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; }
-    input, textarea { display: block; margin: 10px 0; width: 300px; }
-    .entry { margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
-    .entry-header {
-      position: relative;
-      margin-bottom: 5px;
-      height: 30px;
+    body {
+      background-color: #121212;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 20px;
     }
-    .entry-header strong {
-      position: absolute;
-      left: 0;
-      top: 0;
+
+    h1 {
+      font-size: 20px;
+      margin-bottom: 10px;
+      color: #ffffff;
     }
-    .entry-controls {
-      position: absolute;
-      left: 300px;
-      top: 0;
+
+    .form-container {
+      background-color: #1e1e1e;
+      padding: 16px;
+      border-radius: 8px;
+      max-width: 280px;
+      margin: 0 auto 30px auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.4);
+    }
+
+    .form-group {
       display: flex;
-      gap: 5px;
+      flex-direction: column;
+      margin-bottom: 12px;
+    }
+
+    .form-group label {
+      font-size: 13px;
+      margin-bottom: 4px;
+      color: #ccc;
+    }
+
+    .form-group input,
+    .form-group textarea {
+      background-color: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 5px;
+      padding: 8px;
+      font-size: 13px;
+      color: #eee;
+    }
+
+    .form-group textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+
+    .form-container button {
+      background-color: #444;
+      color: #fff;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 5px;
+      font-size: 14px;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    .form-container button:hover {
+      background-color: #666;
+    }
+
+    .entry {
+      background-color: #1e1e1e;
+      padding: 10px;
+      margin-bottom: 15px;
+      border-radius: 6px;
+      border: 1px solid #333;
+    }
+
+    .entry-header {
+      display: flex;
+      justify-content: space-between;
       align-items: center;
     }
-    .pw-input {
-      width: 50px;
-      padding: 2px;
+
+    .entry-controls {
+      display: flex;
+      gap: 6px;
     }
-    .entry-message {
-      margin-left: 5px;
+
+    .pw-input {
+      width: 60px;
+      background-color: #2a2a2a;
+      color: #eee;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 4px;
+    }
+
+    .pagination {
+      margin-top: 20px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .pagination button {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      text-align: center;
+      background-color: #2a2a2a;
+      color: #eee;
+      border: 1px solid #444;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .pagination button:hover {
+      background-color: #555;
+    }
+
+    #entries {
+      max-width: 600px;
+      margin: 0 auto;
     }
   </style>
 </head>
 <body>
   <h1>방명록</h1>
-  <input type="text" id="name" placeholder="이름">
-  <textarea id="message" placeholder="메시지"></textarea>
-  <input type="password" id="password" placeholder="비밀번호">
-  <button onclick="submitEntry()">등록</button>
+  <div class="form-container">
+    <div class="form-group">
+      <label for="name">별명</label>
+      <input type="text" id="name" placeholder="예: 홍길동">
+    </div>
+    <div class="form-group">
+      <label for="message">내용</label>
+      <textarea id="message" placeholder="방명록 메시지를 입력하세요"></textarea>
+    </div>
+    <div class="form-group">
+      <label for="password">비밀번호</label>
+      <input type="password" id="password" placeholder="삭제 시 필요한 비밀번호">
+    </div>
+    <button onclick="submitEntry()">등록</button>
+  </div>
 
-  <h2>메시지 목록</h2>
   <div id="entries"></div>
+  <div class="pagination" id="pagination"></div>
 
   <script type="module">
-    import { db, ref, push, onChildAdded, remove } from './guestbook_cdn.js';
+    import { db, ref, push, onValue, remove } from './firebase_cdn.js';
+
+    const entriesRef = ref(db, 'guestbook');
+    let allEntries = [];
+    let currentPage = 1;
+    const entriesPerPage = 12;
 
     window.submitEntry = () => {
       const name = document.getElementById('name').value.trim();
@@ -53,7 +162,7 @@
       const password = document.getElementById('password').value.trim();
 
       if (!name || !message) {
-        alert("이름과 메시지를 모두 입력해주세요.");
+        alert("별명과 내용을 모두 입력해주세요.");
         return;
       }
 
@@ -62,37 +171,72 @@
         return;
       }
 
-      push(ref(db, 'guestbook'), { name, message, password });
+      push(entriesRef, { name, message, password });
       document.getElementById('name').value = '';
       document.getElementById('message').value = '';
       document.getElementById('password').value = '';
     };
 
-    const entriesRef = ref(db, 'guestbook');
-    onChildAdded(entriesRef, (snapshot) => {
-      const entry = snapshot.val();
-      const key = snapshot.key;
-      const div = document.createElement('div');
-      div.className = 'entry';
-      div.innerHTML = `
-        <div class="entry-header">
-          <strong>${entry.name}</strong>
-          <div class="entry-controls">
-            <input type="password" id="pw-${key}" class="pw-input" placeholder="PW">
-            <button onclick="deleteEntry('${key}', '${entry.password}')">삭제</button>
-          </div>
-        </div>
-        <div class="entry-message">${entry.message}</div>
-      `;
-      document.getElementById('entries').prepend(div);
+    onValue(entriesRef, (snapshot) => {
+      const data = snapshot.val();
+      allEntries = [];
+      for (const key in data) {
+        allEntries.push({ key, ...data[key] });
+      }
+      allEntries.reverse();
+      renderPage(currentPage);
+      renderPagination();
     });
+
+    function renderPage(page) {
+      const start = (page - 1) * entriesPerPage;
+      const end = start + entriesPerPage;
+      const entries = allEntries.slice(start, end);
+
+      const container = document.getElementById('entries');
+      container.innerHTML = '';
+
+      entries.forEach(entry => {
+        const div = document.createElement('div');
+        div.className = 'entry';
+        div.innerHTML = `
+          <div class="entry-header">
+            <strong>${entry.name}</strong>
+            <div class="entry-controls">
+              <input type="password" id="pw-${entry.key}" class="pw-input" placeholder="PW">
+              <button onclick="deleteEntry('${entry.key}', '${entry.password}')">삭제</button>
+            </div>
+          </div>
+          <div class="entry-message">${entry.message}</div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function renderPagination() {
+      const totalPages = Math.ceil(allEntries.length / entriesPerPage);
+      const container = document.getElementById('pagination');
+      container.innerHTML = '';
+
+      for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement('button');
+        btn.textContent = i;
+        btn.onclick = () => {
+          currentPage = i;
+          renderPage(i);
+        };
+        if (i === currentPage) {
+          btn.style.backgroundColor = '#666';
+        }
+        container.appendChild(btn);
+      }
+    }
 
     window.deleteEntry = (key, originalPw) => {
       const inputPw = document.getElementById(`pw-${key}`).value;
       if (inputPw === originalPw) {
         remove(ref(db, `guestbook/${key}`));
         alert("삭제되었습니다.");
-        location.reload();
       } else {
         alert("비밀번호가 틀렸습니다.");
       }
