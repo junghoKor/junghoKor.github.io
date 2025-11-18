@@ -4,9 +4,9 @@ import {
   getDatabase,
   ref,
   push,
-  onChildAdded,
   remove,
-  update // ✅ 삭제 기능을 위한 update 추가
+  update,
+  onValue // ✅ 실시간 데이터 읽기를 위한 onValue 사용
 } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
 
 // Firebase 설정 및 초기화
@@ -24,4 +24,4 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 // 외부에서 사용할 수 있도록 export
-export { db, ref, push, onChildAdded, remove, update };
+export { db, ref, push, remove, update, onValue };
