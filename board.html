@@ -14,14 +14,18 @@
 
     .layout {
       display: flex;
-      justify-content: space-between;
+      gap: 40px;
       align-items: flex-start;
     }
 
     h1 {
       font-size: 20px;
-      margin-bottom: 10px;
+      margin-bottom: 20px;
       color: #ffffff;
+    }
+
+    .entries-container {
+      flex: 1;
     }
 
     .form-container {
@@ -30,8 +34,6 @@
       border-radius: 8px;
       width: 260px;
       box-shadow: 0 0 10px rgba(0,0,0,0.4);
-      position: sticky;
-      top: 20px;
     }
 
     .form-group {
@@ -76,36 +78,45 @@
       background-color: #666;
     }
 
-    .entries-container {
-      flex: 1;
-      margin-right: 40px;
-    }
-
     .entry {
-      padding: 6px 0;
-      font-size: 14px;
-      line-height: 1.4;
+      width: 600px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #333;
     }
 
-    .entry strong {
+    .entry-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .entry-name {
+      font-weight: bold;
+      font-size: 15px;
       color: #fff;
-      margin-right: 8px;
     }
 
     .entry-controls {
-      display: inline-flex;
+      display: flex;
       gap: 6px;
-      margin-left: 10px;
+      align-items: center;
     }
 
     .pw-input {
-      width: 50px;
+      width: 60px;
       background-color: #2a2a2a;
       color: #eee;
       border: 1px solid #444;
       border-radius: 4px;
-      padding: 2px 4px;
+      padding: 4px;
       font-size: 12px;
+    }
+
+    .entry-message {
+      margin-top: 6px;
+      font-size: 14px;
+      line-height: 1.4;
     }
 
     .pagination {
@@ -214,11 +225,14 @@
         const div = document.createElement('div');
         div.className = 'entry';
         div.innerHTML = `
-          <strong>${entry.name}</strong>${entry.message}
-          <span class="entry-controls">
-            <input type="password" id="pw-${entry.key}" class="pw-input" placeholder="PW">
-            <button onclick="deleteEntry('${entry.key}', '${entry.password}')">삭제</button>
-          </span>
+          <div class="entry-header">
+            <div class="entry-name">${entry.name}</div>
+            <div class="entry-controls">
+              <input type="password" id="pw-${entry.key}" class="pw-input" placeholder="PW">
+              <button onclick="deleteEntry('${entry.key}', '${entry.password}')">삭제</button>
+            </div>
+          </div>
+          <div class="entry-message">${entry.message}</div>
         `;
         container.appendChild(div);
       });
