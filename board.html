@@ -170,7 +170,7 @@
   </div>
 
   <script type="module">
-    import { db, ref, push, set, onValue } from './guestbook_cdn.js';
+    import { db, ref, push, remove, onValue } from './guestbook_cdn.js';
 
     const entriesRef = ref(db, 'guestbook');
     let allEntries = [];
@@ -256,11 +256,10 @@
       const inputPw = document.getElementById(`pw-${key}`).value;
       const entryRef = ref(db, `guestbook/${key}`);
 
-      // overwrite with password, then delete
-      set(entryRef, { password: inputPw })
-        .then(() => set(entryRef, null))
+      // 삭제 시도만 하고, Firebase 규칙이 판단
+      remove(entryRef)
         .then(() => alert("삭제되었습니다."))
-        .catch(() => alert("비밀번호가 틀렸습니다."));
+        .catch(() => alert("비밀번호가 틀렸거나 삭제 권한이 없습니다."));
     };
   </script>
 </body>
