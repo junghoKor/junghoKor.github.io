@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Guestbook</title>
+  <title>방명록</title>
   <style>
     body {
       background-color: #121212;
@@ -10,6 +10,12 @@
       font-family: 'Segoe UI', sans-serif;
       margin: 0;
       padding: 20px;
+    }
+
+    .layout {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
     }
 
     h1 {
@@ -22,9 +28,10 @@
       background-color: #1e1e1e;
       padding: 16px;
       border-radius: 8px;
-      max-width: 280px;
-      margin: 0 auto 30px auto;
+      width: 260px;
       box-shadow: 0 0 10px rgba(0,0,0,0.4);
+      position: sticky;
+      top: 20px;
     }
 
     .form-group {
@@ -69,45 +76,48 @@
       background-color: #666;
     }
 
-    .entry {
-      background-color: #1e1e1e;
-      padding: 10px;
-      margin-bottom: 15px;
-      border-radius: 6px;
-      border: 1px solid #333;
+    .entries-container {
+      flex: 1;
+      margin-right: 40px;
     }
 
-    .entry-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    .entry {
+      padding: 6px 0;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .entry strong {
+      color: #fff;
+      margin-right: 8px;
     }
 
     .entry-controls {
-      display: flex;
+      display: inline-flex;
       gap: 6px;
+      margin-left: 10px;
     }
 
     .pw-input {
-      width: 60px;
+      width: 50px;
       background-color: #2a2a2a;
       color: #eee;
       border: 1px solid #444;
       border-radius: 4px;
-      padding: 4px;
+      padding: 2px 4px;
+      font-size: 12px;
     }
 
     .pagination {
       margin-top: 20px;
       display: flex;
-      gap: 8px;
+      gap: 6px;
       flex-wrap: wrap;
-      justify-content: center;
     }
 
     .pagination button {
-      width: 32px;
-      height: 32px;
+      width: 28px;
+      height: 28px;
       padding: 0;
       text-align: center;
       background-color: #2a2a2a;
@@ -115,38 +125,42 @@
       border: 1px solid #444;
       border-radius: 4px;
       cursor: pointer;
+      font-size: 13px;
     }
 
     .pagination button:hover {
       background-color: #555;
     }
 
-    #entries {
-      max-width: 600px;
-      margin: 0 auto;
+    .pagination button.active {
+      background-color: #666;
     }
   </style>
 </head>
 <body>
-  <h1>방명록</h1>
-  <div class="form-container">
-    <div class="form-group">
-      <label for="name">별명</label>
-      <input type="text" id="name" placeholder="예: 홍길동">
+  <div class="layout">
+    <div class="entries-container">
+      <h1>방명록</h1>
+      <div id="entries"></div>
+      <div class="pagination" id="pagination"></div>
     </div>
-    <div class="form-group">
-      <label for="message">내용</label>
-      <textarea id="message" placeholder="방명록 메시지를 입력하세요"></textarea>
-    </div>
-    <div class="form-group">
-      <label for="password">비밀번호</label>
-      <input type="password" id="password" placeholder="삭제 시 필요한 비밀번호">
-    </div>
-    <button onclick="submitEntry()">등록</button>
-  </div>
 
-  <div id="entries"></div>
-  <div class="pagination" id="pagination"></div>
+    <div class="form-container">
+      <div class="form-group">
+        <label for="name">별명</label>
+        <input type="text" id="name" placeholder="예: 홍길동">
+      </div>
+      <div class="form-group">
+        <label for="message">내용</label>
+        <textarea id="message" placeholder="방명록 메시지를 입력하세요"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="password">비밀번호</label>
+        <input type="password" id="password" placeholder="삭제 시 필요한 비밀번호">
+      </div>
+      <button onclick="submitEntry()">등록</button>
+    </div>
+  </div>
 
   <script type="module">
     import { db, ref, push, onValue, remove } from './guestbook_cdn.js';
@@ -154,7 +168,7 @@
     const entriesRef = ref(db, 'guestbook');
     let allEntries = [];
     let currentPage = 1;
-    const entriesPerPage = 12;
+    const entriesPerPage = 10;
 
     window.submitEntry = () => {
       const name = document.getElementById('name').value.trim();
@@ -200,14 +214,11 @@
         const div = document.createElement('div');
         div.className = 'entry';
         div.innerHTML = `
-          <div class="entry-header">
-            <strong>${entry.name}</strong>
-            <div class="entry-controls">
-              <input type="password" id="pw-${entry.key}" class="pw-input" placeholder="PW">
-              <button onclick="deleteEntry('${entry.key}', '${entry.password}')">삭제</button>
-            </div>
-          </div>
-          <div class="entry-message">${entry.message}</div>
+          <strong>${entry.name}</strong>${entry.message}
+          <span class="entry-controls">
+            <input type="password" id="pw-${entry.key}" class="pw-input" placeholder="PW">
+            <button onclick="deleteEntry('${entry.key}', '${entry.password}')">삭제</button>
+          </span>
         `;
         container.appendChild(div);
       });
@@ -221,13 +232,12 @@
       for (let i = 1; i <= totalPages; i++) {
         const btn = document.createElement('button');
         btn.textContent = i;
+        btn.className = i === currentPage ? 'active' : '';
         btn.onclick = () => {
           currentPage = i;
           renderPage(i);
+          renderPagination();
         };
-        if (i === currentPage) {
-          btn.style.backgroundColor = '#666';
-        }
         container.appendChild(btn);
       }
     }
@@ -244,4 +254,3 @@
   </script>
 </body>
 </html>
-
