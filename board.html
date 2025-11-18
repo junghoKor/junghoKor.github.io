@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>방명록</title>
   <style>
     body {
@@ -12,17 +12,14 @@
       padding: 20px;
       position: relative;
     }
-
     h1 {
       font-size: 20px;
       margin-bottom: 20px;
       color: #ffffff;
     }
-
     .entries-container {
       width: 500px;
     }
-
     .form-container {
       position: absolute;
       left: 600px;
@@ -33,19 +30,16 @@
       width: 260px;
       box-shadow: 0 0 10px rgba(0,0,0,0.4);
     }
-
     .form-group {
       display: flex;
       flex-direction: column;
       margin-bottom: 12px;
     }
-
     .form-group label {
       font-size: 13px;
       margin-bottom: 4px;
       color: #ccc;
     }
-
     .form-group input,
     .form-group textarea {
       background-color: #2a2a2a;
@@ -55,12 +49,10 @@
       font-size: 13px;
       color: #eee;
     }
-
     .form-group textarea {
       resize: vertical;
       min-height: 60px;
     }
-
     .form-container button {
       background-color: #444;
       color: #fff;
@@ -71,36 +63,30 @@
       cursor: pointer;
       width: 100%;
     }
-
     .form-container button:hover {
       background-color: #666;
     }
-
     .entry {
       width: 500px;
       margin-bottom: 16px;
       padding-bottom: 8px;
       border-bottom: 1px solid #333;
     }
-
     .entry-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-
     .entry-name {
       font-weight: bold;
       font-size: 15px;
       color: #fff;
     }
-
     .entry-controls {
       display: flex;
       gap: 6px;
       align-items: center;
     }
-
     .pw-input {
       width: 60px;
       background-color: #2a2a2a;
@@ -110,20 +96,17 @@
       padding: 4px;
       font-size: 12px;
     }
-
     .entry-message {
       margin-top: 6px;
       font-size: 14px;
       line-height: 1.4;
     }
-
     .pagination {
       margin-top: 20px;
       display: flex;
       gap: 6px;
       flex-wrap: wrap;
     }
-
     .pagination button {
       width: 28px;
       height: 28px;
@@ -136,11 +119,9 @@
       cursor: pointer;
       font-size: 13px;
     }
-
     .pagination button:hover {
       background-color: #555;
     }
-
     .pagination button.active {
       background-color: #666;
     }
@@ -156,7 +137,7 @@
   <div class="form-container">
     <div class="form-group">
       <label for="name">별명</label>
-      <input type="text" id="name" placeholder="예: 홍길동">
+      <input type="text" id="name" placeholder="예: 홍길동" />
     </div>
     <div class="form-group">
       <label for="message">내용</label>
@@ -164,13 +145,13 @@
     </div>
     <div class="form-group">
       <label for="password">비밀번호</label>
-      <input type="password" id="password" placeholder="삭제 시 필요한 비밀번호">
+      <input type="password" id="password" placeholder="삭제 시 필요한 비밀번호" />
     </div>
     <button onclick="submitEntry()">등록</button>
   </div>
 
   <script type="module">
-    import { db, ref, push, remove, onValue } from './guestbook_cdn.js';
+    import { db, ref, push, update, remove, onChildAdded } from './guestbook_cdn.js';
 
     const entriesRef = ref(db, 'guestbook');
     let allEntries = [];
@@ -182,13 +163,8 @@
       const message = document.getElementById('message').value.trim();
       const password = document.getElementById('password').value.trim();
 
-      if (!name || !message) {
-        alert("별명과 내용을 모두 입력해주세요.");
-        return;
-      }
-
-      if (!password) {
-        alert("비밀번호를 입력해야 등록할 수 있습니다.");
+      if (!name || !message || !password) {
+        alert("별명, 내용, 비밀번호를 모두 입력해주세요.");
         return;
       }
 
@@ -198,13 +174,9 @@
       document.getElementById('password').value = '';
     };
 
-    onValue(entriesRef, (snapshot) => {
-      const data = snapshot.val();
-      allEntries = [];
-      for (const key in data) {
-        allEntries.push({ key, ...data[key] });
-      }
-      allEntries.reverse();
+    onChildAdded(entriesRef, (snapshot) => {
+      const entry = { key: snapshot.key, ...snapshot.val() };
+      allEntries.unshift(entry);
       renderPage(currentPage);
       renderPagination();
     });
@@ -224,7 +196,7 @@
           <div class="entry-header">
             <div class="entry-name">${entry.name}</div>
             <div class="entry-controls">
-              <input type="password" id="pw-${entry.key}" class="pw-input" placeholder="PW">
+              <input type="password" id="pw-${entry.key}" class="pw-input" placeholder="PW" />
               <button onclick="deleteEntry('${entry.key}')">삭제</button>
             </div>
           </div>
@@ -253,12 +225,21 @@
     }
 
     window.deleteEntry = (key) => {
-      const inputPw = document.getElementById(`pw-${key}`).value;
+      const inputPw = document.getElementById(`pw-${key}`).value.trim();
+      if (!inputPw) {
+        alert("비밀번호를 입력해주세요.");
+        return;
+      }
+
       const entryRef = ref(db, `guestbook/${key}`);
 
-      // 삭제 시도만 하고, Firebase 규칙이 판단
-      remove(entryRef)
-        .then(() => alert("삭제되었습니다."))
+      // 먼저 비밀번호를 update로 전송
+      update(entryRef, { password: inputPw })
+        .then(() => {
+          remove(entryRef)
+            .then(() => alert("삭제되었습니다."))
+            .catch(() => alert("삭제 중 오류가 발생했습니다."));
+        })
         .catch(() => alert("비밀번호가 틀렸거나 삭제 권한이 없습니다."));
     };
   </script>
