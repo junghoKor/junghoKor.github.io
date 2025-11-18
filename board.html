@@ -151,7 +151,7 @@
   </div>
 
   <script type="module">
-    import { db, ref, push, update, remove, onChildAdded } from './guestbook_cdn.js';
+    import { db, ref, push, update, remove, onValue } from './guestbook_cdn.js';
 
     const entriesRef = ref(db, 'guestbook');
     let allEntries = [];
@@ -174,9 +174,13 @@
       document.getElementById('password').value = '';
     };
 
-    onChildAdded(entriesRef, (snapshot) => {
-      const entry = { key: snapshot.key, ...snapshot.val() };
-      allEntries.unshift(entry);
+    onValue(entriesRef, (snapshot) => {
+      const data = snapshot.val();
+      allEntries = [];
+      for (const key in data) {
+        allEntries.push({ key, ...data[key] });
+      }
+      allEntries.reverse();
       renderPage(currentPage);
       renderPagination();
     });
