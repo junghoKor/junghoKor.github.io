@@ -170,7 +170,7 @@
   </div>
 
   <script type="module">
-    import { db, ref, push, onValue, remove } from './guestbook_cdn.js';
+    import { db, ref, push, set, onValue } from './guestbook_cdn.js';
 
     const entriesRef = ref(db, 'guestbook');
     let allEntries = [];
@@ -225,7 +225,7 @@
             <div class="entry-name">${entry.name}</div>
             <div class="entry-controls">
               <input type="password" id="pw-${entry.key}" class="pw-input" placeholder="PW">
-              <button onclick="deleteEntry('${entry.key}', '${entry.password}')">삭제</button>
+              <button onclick="deleteEntry('${entry.key}')">삭제</button>
             </div>
           </div>
           <div class="entry-message">${entry.message}</div>
@@ -252,15 +252,15 @@
       }
     }
 
-    window.deleteEntry = (key, originalPw) => {
+    window.deleteEntry = (key) => {
       const inputPw = document.getElementById(`pw-${key}`).value;
-        if (inputPw === originalPw) {
-          remove(ref(db, `guestbook/${key}`));
-        } else {
-          remove(ref(db, `guestbook/${key}`))
-	      .then(() => alert("삭제되었습니다."))
-	      .catch(() => alert("비밀번호가 틀렸습니다."));
-        }
+      const entryRef = ref(db, `guestbook/${key}`);
+
+      // overwrite with password, then delete
+      set(entryRef, { password: inputPw })
+        .then(() => set(entryRef, null))
+        .then(() => alert("삭제되었습니다."))
+        .catch(() => alert("비밀번호가 틀렸습니다."));
     };
   </script>
 </body>
