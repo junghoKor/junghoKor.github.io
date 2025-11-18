@@ -1,14 +1,12 @@
-// firebase_cdn.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
 import {
   getDatabase,
   ref,
   push,
-  onChildAdded,
+  onValue,
   remove
 } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
 
-// Firebase 설정 및 초기화
 const firebaseConfig = {
   apiKey: "AIzaSyCGNeDfVZihhr5_Wva0BcPWA0RC2TU9ZR8",
   authDomain: "junghokor-guestbook.firebaseapp.com",
@@ -22,5 +20,4 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// 외부에서 사용할 수 있도록 export
-export { db, ref, push, onChildAdded, remove };
+export { db, ref, push, onValue, remove };
