@@ -37,7 +37,7 @@
   <div class="form-container">
     <div class="form-group">
       <label for="name">별명</label>
-      <input type="text" id="name" placeholder="예: 홍길동" />
+      <input type="text" id="name" placeholder="홍길동" />
     </div>
     <div class="form-group">
       <label for="message">내용</label>
@@ -51,7 +51,7 @@
   </div>
 
   <script type="module">
-    import { db, ref, push, remove, onValue } from './guestbook_cdn.js';
+    import { db, ref, push, update, onValue } from './guestbook_cdn.js';
 
     const entriesRef = ref(db, 'guestbook');
     let allEntries = [];
@@ -68,20 +68,27 @@
         return;
       }
 
-      push(entriesRef, { name, message, password, timestamp: Date.now() })
-        .then(() => {
-          document.getElementById('name').value = '';
-          document.getElementById('message').value = '';
-          document.getElementById('password').value = '';
-        });
+      push(entriesRef, {
+        name,
+        message,
+        password,
+        timestamp: Date.now()
+      }).then(() => {
+        document.getElementById('name').value = '';
+        document.getElementById('message').value = '';
+        document.getElementById('password').value = '';
+      });
     };
 
     onValue(entriesRef, (snapshot) => {
       const data = snapshot.val() || {};
       allEntries = Object.entries(data)
         .map(([key, value]) => ({ key, ...value }))
-        .sort((a, b) => b.timestamp - a.timestamp);
+        // 삭제된 글 (name 또는 message가 null)은 표시 안 함
+        .filter(entry => entry.name !== null && entry.message !== null)
+        .sort((a, b) => b.timestamp - a.timestamp);  // 최신순
 
+      currentPage = 1;  // 새 글이 추가되면 첫 페이지로
       renderPage(currentPage);
       renderPagination();
     });
@@ -89,12 +96,12 @@
     function renderPage(page) {
       const start = (page - 1) * entriesPerPage;
       const end = start + entriesPerPage;
-      const entries = allEntries.slice(start, end);
+      const pageEntries = allEntries.slice(start, end);
 
       const container = document.getElementById('entries');
       container.innerHTML = '';
 
-      entries.forEach(entry => {
+      pageEntries.forEach(entry => {
         const div = document.createElement('div');
         div.className = 'entry';
         div.innerHTML = `
@@ -117,25 +124,28 @@
     }
 
     window.deleteEntry = (key, button) => {
-      const input = button.parentElement.querySelector('.pw-input');
-      const inputPw = input.value.trim();
+      const inputPw = button.previousElementSibling.value.trim();
 
       if (!inputPw) {
         alert("비밀번호를 입력해주세요.");
         return;
       }
-
       if (!confirm("정말 삭제하시겠습니까?")) return;
 
       const entryRef = ref(db, `guestbook/${key}`);
 
-      remove(entryRef)
-        .then(() => {
-          alert("삭제되었습니다.");
-        })
-        .catch(() => {
-          alert("비밀번호가 틀립니다.");
-        });
+      // password는 그대로 두고 name, message, timestamp만 null로 → 규칙 통과
+      update(entryRef, {
+        name: null,
+        message: null,
+        timestamp: null
+      })
+      .then(() => {
+        alert("삭제되었습니다.");
+      })
+      .catch(() => {
+        alert("비밀번호가 틀립니다.");
+      });
     };
 
     function renderPagination() {
