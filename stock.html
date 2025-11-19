@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Bollinger Bands Viewer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        .container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+        .left-panel {
+            width: 200px;
+            min-height: 750px;
+            height: auto;
+            border-right: 1px solid #ccc;
+            padding: 10px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            margin-top: 0;
+            order: 2;
+        }
+        .tab {
+            width: 40px;
+            height: 24px;
+            background-color: #d3d3d3 !important;
+            color: #333 !important;
+            border: 1px solid #d3d3d3 !important;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 9px;
+            transition: background-color 0.2s, border-color 0.2s;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+        }
+        .tab.selected {
+            background-color: #007bff !important;
+            color: #ffffff !important;
+            border-color: #007bff !important;
+        }
+        .tab:hover {
+            background-color: #c0c0c0 !important;
+        }
+        .tab.selected:hover {
+            background-color: #0056b3 !important;
+        }
+        .left-panel button {
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 5px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .left-panel button:hover {
+            background-color: #0056b3;
+        }
+        .left-panel input {
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 5px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .custom-ticker {
+            display: flex;
+            margin-bottom: 10px;
+            align-items: stretch;
+        }
+        .custom-ticker input {
+            flex: 1;
+            margin-right: 5px;
+            padding: 5px;
+            box-sizing: border-box;
+            height: 30px;
+        }
+        .custom-ticker button {
+            padding: 5px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 0;
+            width: 40px;
+            white-space: nowrap;
+            height: 30px;
+        }
+        .custom-ticker button:hover {
+            background-color: #0056b3;
+        }
+        .left-panel ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+            flex-grow: 1;
+            order: 1;
+        }
+        .left-panel li {
+            cursor: pointer;
+            padding: 3px;
+            margin-bottom: calc(2px + 1pt);
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            font-size: 0.735em;
+            color: #333;
+            transition: background-color 0.2s;
+        }
+        .left-panel li.selected {
+            background-color: #add8e6;
+        }
+        .left-panel li:hover {
+            background-color: #ddd;
+        }
+        .charts {
+            flex: 1;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            box-sizing: border-box;
+            position: relative;
+        }
+        .chart-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+        }
+        .chart-controls button {
+            margin-left: 5px;
+            padding: 5px 10px;
+            background-color: gray;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .chart-controls button.selected {
+            background-color: green;
+        }
+        .chart-controls button:hover {
+            background-color: #0056b3;
+        }
+        #daily-chart, #weekly-chart {
+            width: 100% !important;
+            height: 42% !important;
+            max-height: 42vh !important;
+            margin-bottom: 0;
+        }
+        #rsi-chart {
+            width: 100% !important;
+            height: 16% !important;
+            max-height: 16vh !important;
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="left-panel">
+            <button id="refresh-btn">갱신</button>
+            <div class="custom-ticker">
+                <input type="text" id="custom-ticker-input" placeholder="티커 입력" />
+                <button id="confirm-ticker-btn">확인</button>
+            </div>
+            <ul id="ticker-list"></ul>
+            <div class="tabs">
+                <button class="tab selected" id="tab-etf">ETF</button>
+                <button class="tab" id="tab-stock">STOCK</button>
+            </div>
+        </div>
+        <div class="charts">
+            <div class="chart-controls">
+                <button id="btn-3m">3개월</button>
+                <button id="btn-6m" class="selected">6개월</button>
+                <button id="btn-12m">12개월</button>
+                <button id="btn-24m">24개월</button>
+            </div>
+            <canvas id="daily-chart"></canvas>
+            <canvas id="rsi-chart"></canvas>
+            <canvas id="weekly-chart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let tickerData = [];
+        let currentTicker = null;
+        let currentName = null;
+        let dailyDataFull = [];
+        let weeklyDataFull = [];
+        let dailyBBFull = null;
+        let dailyRSIFull = [];
+        let weeklyBBFull = null;
+        let currentPeriod = 6; // Default to 6 months
+        let currentTab = 'etf'; // Ensure currentTab is initialized
+
+        function populateTickerList() {
+            const ul = document.getElementById('ticker-list');
+            ul.innerHTML = '';
+            tickerData.forEach(({ticker, name, volumeStr, changeStr}) => {
+                const li = document.createElement('li');
+                li.dataset.ticker = ticker;
+                const value = parseFloat(changeStr.replace('%', ''));
+                let color = 'gray';
+                if (!isNaN(value)) {
+                    if (value > 0) {
+                        color = '#009C4B';
+                    } else if (value < 0) {
+                        color = '#FF4143';
+                    }
+                }
+                li.innerHTML = `${ticker} - ${volumeStr} <span style="color: ${color};">(${changeStr})</span>`;
+                li.addEventListener('click', () => selectTicker(ticker));
+                ul.appendChild(li);
+            });
+        }
+
+        function highlightSelectedTicker(ticker) {
+            const lis = document.querySelectorAll('.left-panel li');
+            lis.forEach(li => li.classList.remove('selected'));
+            const selectedLi = document.querySelector(`.left-panel li[data-ticker="${ticker}"]`);
+            if (selectedLi) {
+                selectedLi.classList.add('selected');
+            }
+        }
+
+        async function refreshTickerList() {
+            try {
+                const url = currentTab === 'etf'
+                    ? 'https://finance.yahoo.com/markets/etfs/most-active/?start=0&count=30'
+                    : 'https://finance.yahoo.com/markets/stocks/most-active/?start=0&count=30';
+                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+                const response = await fetch(url);
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const table = doc.querySelector('table');
+                if (!table) throw new Error('Table not found');
+                const rows = table.querySelectorAll('tr');
+                let data = [];
+                for (let i = 1; i < rows.length && data.length < 30; i++) {
+                    const cells = rows[i].querySelectorAll('td');
+                    if (cells.length < 7) continue;
+                    const ticker = cells[0].textContent.trim();
+                    const name = cells[1].textContent.trim();
+                    const volumeStr = cells[6].textContent.trim();
+                    const changeStr = cells[5].textContent.trim();
+                    data.push({ ticker, name, volumeStr, changeStr });
+                }
+                if (data.length === 0) throw new Error('No data rows found');
+                tickerData = data;
+                console.log('티커 리스트 갱신 성공:', tickerData);
+                populateTickerList();
+                if (tickerData.length > 0) {
+                    selectTicker(tickerData[0].ticker);
+                }
+            } catch (error) {
+                console.error('Error refreshing ticker list:', error);
+                alert('티커 리스트 갱신에 실패했습니다. 기존 리스트를 사용합니다.');
+                populateTickerList();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            currentTab = 'etf'; // Ensure currentTab is set
+            tickerData = [];
+            populateTickerList();
+            refreshTickerList();
+
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('selected'));
+                    tab.classList.add('selected');
+                    currentTab = tab.id.replace('tab-', '');
+                    refreshTickerList();
+                });
+            });
+
+            const buttons = document.querySelectorAll('.chart-controls button');
+            buttons.forEach(button => {
+                button.addEventListener('click', () => {
+                    buttons.forEach(btn => btn.classList.remove('selected'));
+                    button.classList.add('selected');
+                    currentPeriod = parseInt(button.id.replace('btn-', '').replace('m', ''));
+                    plotWithPeriod(currentPeriod);
+                });
+            });
+
+            const tickerInput = document.getElementById('custom-ticker-input');
+            tickerInput.addEventListener('keypress', (event) => {
+                if (event.keyCode === 13 || event.key === 'Enter') {
+                    const customTicker = tickerInput.value.trim().toUpperCase();
+                    if (customTicker) {
+                        selectTicker(customTicker);
+                    }
+                }
+            });
+
+            document.getElementById('confirm-ticker-btn').addEventListener('click', () => {
+                const customTicker = document.getElementById('custom-ticker-input').value.trim().toUpperCase();
+                if (customTicker) {
+                    selectTicker(customTicker);
+                }
+            });
+        });
+
+        const refreshBtn = document.getElementById('refresh-btn');
+        refreshBtn.addEventListener('click', refreshTickerList);
+
+        async function fetchStockData(ticker, interval = '1d') {
+            const now = Math.floor(Date.now() / 1000);
+            const start = now - (4 * 365 * 24 * 60 * 60); // 48 months
+            const originalUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${start}&period2=${now}&interval=${interval}`;
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(originalUrl)}`;
+            try {
+                const response = await fetch(originalUrl);
+                if (!response.ok) throw new Error(`HTTP 오류! 상태: ${response.status}`);
+                const data = await response.json();
+                if (data.chart.error) {
+                    throw new Error(`Yahoo Finance API 오류: ${data.chart.error.description}`);
+                }
+                const timestamps = data.chart.result[0].timestamp;
+                const closes = data.chart.result[0].indicators.quote[0].close;
+                const result = timestamps.map((t, i) => ({
+                    date: new Date(t * 1000),
+                    close: closes[i]
+                })).filter(item => item.close !== null);
+                if (result.length === 0) throw new Error('유효한 데이터 포인트 없음');
+                console.log(`${ticker} 데이터 가져오기 성공 (${interval}, 48개월): ${result.length} 포인트`);
+                return result;
+            } catch (error) {
+                console.error(`Error fetching data for ${ticker} (${interval}): ${error.message}`);
+                return [];
+            }
+        }
+
+        function createWeeklyData(dailyData) {
+            const weeklyData = [];
+            const weeksNeeded = 208; // Approximately 48 months (4 years) of weeks
+            const step = 5; // 5-day interval
+
+            // Start from the last daily data point to ensure the latest price matches
+            let lastIndex = dailyData.length - 1;
+            for (let i = 0; i < weeksNeeded && lastIndex >= 0; i++) {
+                if (dailyData[lastIndex]) {
+                    weeklyData.unshift({
+                        date: dailyData[lastIndex].date,
+                        close: dailyData[lastIndex].close
+                    });
+                }
+                lastIndex -= step;
+            }
+            return weeklyData;
+        }
+
+        function calculateBollinger(data, windowSize = 20, numStd = 2) {
+            const ma = [];
+            const ma60 = [];
+            const upper = [];
+            const lower = [];
+            const closes = data.map(d => d.close);
+
+            for (let i = 0; i < closes.length; i++) {
+                if (i < windowSize - 1) {
+                    ma.push(null);
+                    upper.push(null);
+                    lower.push(null);
+                } else {
+                    const slice = closes.slice(i - windowSize + 1, i + 1);
+                    const mean = slice.reduce((a, b) => a + b, 0) / windowSize;
+                    const variance = slice.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / windowSize;
+                    const stdev = Math.sqrt(variance);
+                    ma.push(mean);
+                    upper.push(mean + numStd * stdev);
+                    lower.push(Math.max(0.1, mean - numStd * stdev)); // Clamp lower band to 0.1
+                }
+                if (i < 60 - 1) {
+                    ma60.push(null);
+                } else {
+                    const slice60 = closes.slice(i - 60 + 1, i + 1);
+                    const mean60 = slice60.reduce((a, b) => a + b, 0) / 60;
+                    ma60.push(mean60);
+                }
+            }
+            return { ma, ma60, upper, lower };
+        }
+
+        function calculateRSI(data, period = 14) {
+            const rsi = [];
+            const closes = data.map(d => d.close);
+            let avgGain = 0;
+            let avgLoss = 0;
+
+            // Initialize RSI array with nulls to match data length
+            for (let i = 0; i < closes.length; i++) {
+                rsi.push(null);
+            }
+
+            // Calculate RSI for available data
+            for (let i = 1; i < closes.length; i++) {
+                if (i < period) {
+                    continue;
+                }
+                if (i === period) {
+                    let gains = 0;
+                    let losses = 0;
+                    for (let j = 1; j <= period; j++) {
+                        const change = closes[i - j + 1] - closes[i - j];
+                        if (change > 0) {
+                            gains += change;
+                        } else {
+                            losses -= change;
+                        }
+                    }
+                    avgGain = gains / period;
+                    avgLoss = losses / period;
+                } else {
+                    const change = closes[i] - closes[i - 1];
+                    const gain = change > 0 ? change : 0;
+                    const loss = change < 0 ? -change : 0;
+                    avgGain = (avgGain * (period - 1) + gain) / period;
+                    avgLoss = (avgLoss * (period - 1) + loss) / period;
+                }
+
+                if (avgLoss === 0) {
+                    rsi[i] = 100;
+                } else {
+                    const rs = avgGain / avgLoss;
+                    if (!isFinite(rs)) {
+                        rsi[i] = 100;
+                    } else {
+                        rsi[i] = 100 - (100 / (1 + rs));
+                    }
+                }
+            }
+
+            // Fill the last RSI value if null (use the previous valid RSI value)
+            if (rsi[rsi.length - 1] === null && rsi.length > 1) {
+                for (let i = rsi.length - 2; i >= 0; i--) {
+                    if (rsi[i] !== null) {
+                        rsi[rsi.length - 1] = rsi[i];
+                        break;
+                    }
+                }
+            }
+
+            return rsi;
+        }
+
+        function plotBollingerChart(canvasId, title, data, bb, unit = 'day', isDaily = false) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            // Ensure window.charts is initialized
+            window.charts = window.charts || {};
+            // Destroy existing chart if it exists
+            if (window.charts[canvasId]) {
+                window.charts[canvasId].destroy();
+                delete window.charts[canvasId];
+            }
+            if (data.length === 0) {
+                const chart = new Chart(ctx, {
+                    type: 'line',
+                    data: { datasets: [] },
+                    options: {
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: `${title} - 데이터 없음`
+                            }
+                        }
+                    }
+                });
+                window.charts[canvasId] = chart;
+                return;
+            }
+            let labels;
+            let scalesConfig;
+            if (isDaily) {
+                labels = data.map(d => d.date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }));
+                scalesConfig = {
+                    x: {
+                        type: 'category',
+                        position: 'right'
+                    }
+                };
+            } else {
+                labels = data.map(d => d.date);
+                scalesConfig = {
+                    x: {
+                        type: 'time',
+                        position: 'right',
+                        time: {
+                            unit: unit,
+                            displayFormats: {
+                                week: 'M/D'
+                            }
+                        }
+                    }
+                };
+            }
+            const currentPrice = data[data.length - 1].close;
+            let xValue;
+            if (isDaily) {
+                xValue = labels[0];
+            } else {
+                xValue = data[0].date;
+            }
+            // Calculate min and max for Y-axis to include all data points
+            const allValues = [
+                ...data.map(d => d.close),
+                ...bb.ma.filter(v => v !== null),
+                ...bb.ma60.filter(v => v !== null),
+                ...bb.upper.filter(v => v !== null),
+                ...bb.lower.filter(v => v !== null)
+            ].filter(v => v > 0); // Exclude non-positive values for logarithmic scale
+            const minValue = Math.min(...allValues);
+            const maxValue = Math.max(...allValues);
+            const padding = (maxValue - minValue) * 0.05; // 5% padding
+            const yMin = Math.max(0.1, minValue - padding); // Ensure min is at least 0.1 for logarithmic scale
+            const yMax = maxValue + padding;
+            const datasets = [
+                {
+                    label: 'Close Price',
+                    data: data.map(d => d.close),
+                    borderColor: 'blue',
+                    fill: false,
+                    borderWidth: 1,
+                    pointRadius: 3
+                },
+                {
+                    label: '20-Period MA',
+                    data: bb.ma,
+                    borderColor: 'orange',
+                    fill: false,
+                    borderWidth: 1,
+                    pointRadius: 0
+                },
+                {
+                    label: '60-Period MA',
+                    data: bb.ma60,
+                    borderColor: '#FF4500',
+                    fill: false,
+                    borderWidth: 1,
+                    pointRadius: 0
+                },
+                {
+                    label: 'Upper Band',
+                    data: bb.upper,
+                    borderColor: '#FFD700',
+                    fill: '+1',
+                    backgroundColor: 'rgba(0, 255, 0, 0.1)',
+                    borderWidth: 1,
+                    pointRadius: 0
+                },
+                {
+                    label: 'Lower Band',
+                    data: bb.lower,
+                    borderColor: '#FFD700',
+                    fill: false,
+                    borderWidth: 1,
+                    pointRadius: 0
+                }
+            ];
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: title
+                        },
+                        annotation: {
+                            annotations: [
+                                {
+                                    type: 'line',
+                                    yMin: currentPrice,
+                                    yMax: currentPrice,
+                                    borderColor: 'red',
+                                    borderWidth: 1,
+                                    borderDash: [5, 5]
+                                },
+                                {
+                                    type: 'label',
+                                    content: ' ' + currentPrice.toFixed(2) + ' ',
+                                    backgroundColor: 'white',
+                                    color: 'red',
+                                    xValue: xValue,
+                                    yValue: currentPrice,
+                                    xAdjust: 20, // Move 20pt to the right
+                                    yAdjust: 0,
+                                    padding: 2,
+                                    font: {
+                                        size: 10
+                                    },
+                                    clip: false,
+                                    drawTime: 'afterDatasetsDraw'
+                                }
+                            ]
+                        }
+                    },
+                    scales: {
+                        ...scalesConfig,
+                        y: {
+                            type: 'logarithmic', // Logarithmic scale
+                            min: yMin,
+                            max: yMax,
+                            maxWidth: 200,
+                            minWidth: 200,
+                            paddingRight: 10,
+                            ticks: {
+                                align: 'right',
+                                font: { size: 12 },
+                                callback: function(value) {
+                                    return currentPrice <= 15 ? Number(value).toFixed(1) : Number(value).toFixed(0);
+                                },
+                                autoSkip: false,
+                                maxTicksLimit: 10
+                            }
+                        }
+                    }
+                }
+            });
+            window.charts[canvasId] = chart;
+        }
+
+        function plotRSIChart(canvasId, title, data, rsi, isDaily = true) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            // Ensure window.charts is initialized
+            window.charts = window.charts || {};
+            // Destroy existing chart if it exists
+            if (window.charts[canvasId]) {
+                window.charts[canvasId].destroy();
+                delete window.charts[canvasId];
+            }
+            if (data.length === 0) {
+                const chart = new Chart(ctx, {
+                    type: 'line',
+                    data: { datasets: [] },
+                    options: {
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: `${title} - 데이터 없음`
+                            }
+                        }
+                    }
+                });
+                window.charts[canvasId] = chart;
+                return;
+            }
+            // Use same labels as daily chart to ensure date alignment
+            let labels = data.map(d => d.date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }));
+            let scalesConfig = {
+                x: {
+                    type: 'category',
+                    display: false,
+                    position: 'right',
+                    grid: {
+                        display: false
+                    }
+                }
+            };
+            const currentPrice = data.length > 0 ? data[data.length - 1].close : 0;
+            // Get the latest RSI value, ensure it's valid
+            let currentRSI = rsi[rsi.length - 1];
+            if (currentRSI === null || currentRSI === undefined) {
+                for (let i = rsi.length - 2; i >= 0; i--) {
+                    if (rsi[i] !== null && rsi[i] !== undefined) {
+                        currentRSI = rsi[i];
+                        break;
+                    }
+                }
+            }
+            // Ensure currentRSI is defined, fallback to 50 if no valid value found
+            currentRSI = currentRSI !== null && currentRSI !== undefined ? currentRSI : 50;
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'RSI',
+                            data: rsi,
+                            borderColor: 'purple',
+                            fill: false,
+                            borderWidth: 1,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: false,
+                            text: title
+                        },
+                        annotation: {
+                            annotations: [
+                                {
+                                    type: 'line',
+                                    yMin: 75,
+                                    yMax: 75,
+                                    borderColor: 'black',
+                                    borderWidth: 1,
+                                    borderDash: [5, 5]
+                                },
+                                {
+                                    type: 'line',
+                                    yMin: 25,
+                                    yMax: 25,
+                                    borderColor: 'black',
+                                    borderWidth: 1,
+                                    borderDash: [5, 5]
+                                },
+                                {
+                                    type: 'line',
+                                    yMin: currentRSI,
+                                    yMax: currentRSI,
+                                    borderColor: 'red',
+                                    borderWidth: 1,
+                                    borderDash: [5, 5],
+                                    drawTime: 'afterDatasetsDraw'
+                                },
+                                {
+                                    type: 'label',
+                                    content: ` ${currentRSI.toFixed(2)} `,
+                                    backgroundColor: 'white',
+                                    color: 'red',
+                                    xValue: labels[0], // Align with latest date (same as daily chart)
+                                    yValue: currentRSI,
+                                    xAdjust: 20, // Move 20pt to the right
+                                    yAdjust: 0,
+                                    padding: 2,
+                                    font: {
+                                        size: 10
+                                    },
+                                    clip: false,
+                                    drawTime: 'afterDatasetsDraw'
+                                }
+                            ]
+                        }
+                    },
+                    scales: {
+                        ...scalesConfig,
+                        y: {
+                            beginAtZero: false,
+                            min: 0,
+                            max: 100,
+                            maxWidth: 200,
+                            minWidth: 200,
+                            paddingRight: 10,
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                stepSize: 25,
+                                callback: function(value) {
+                                    if (value === 25 || value === 50 || value === 75) {
+                                        return currentPrice <= 15 ? Number(value).toFixed(1) : Number(value).toFixed(0);
+                                    }
+                                    return null;
+                                },
+                                align: 'right',
+                                font: { size: 12 },
+                                autoSkip: false
+                            }
+                        }
+                    }
+                }
+            });
+            window.charts[canvasId] = chart;
+        }
+
+        function plotWithPeriod(period) {
+            const currentDate = new Date();
+            const monthsAgo = new Date(currentDate);
+            monthsAgo.setMonth(monthsAgo.getMonth() - period);
+
+            // Daily chart data (filtered by selected period)
+            const dailyStartIndex = dailyDataFull.findIndex(item => item.date >= monthsAgo);
+            let dailyData = dailyDataFull.slice(dailyStartIndex >= 0 ? dailyStartIndex : 0);
+            let dailyBB = {
+                ma: dailyBBFull ? dailyBBFull.ma.slice(dailyStartIndex >= 0 ? dailyStartIndex : 0) : [],
+                ma60: dailyBBFull ? dailyBBFull.ma60.slice(dailyStartIndex >= 0 ? dailyStartIndex : 0) : [],
+                upper: dailyBBFull ? dailyBBFull.upper.slice(dailyStartIndex >= 0 ? dailyStartIndex : 0) : [],
+                lower: dailyBBFull ? dailyBBFull.lower.slice(dailyStartIndex >= 0 ? dailyStartIndex : 0) : []
+            };
+            let dailyRSI = dailyRSIFull ? dailyRSIFull.slice(dailyStartIndex >= 0 ? dailyStartIndex : 0) : [];
+            plotBollingerChart('daily-chart', `${currentName} Daily Chart`, dailyData, dailyBB, 'day', true);
+            plotRSIChart('rsi-chart', `${currentName} Daily RSI (14)`, dailyData, dailyRSI, true);
+
+            // Weekly chart data (last 24 months from 48 months of weekly data)
+            const twoYearsAgo = new Date(currentDate);
+            twoYearsAgo.setMonth(twoYearsAgo.getMonth() - 24);
+            const weeklyStartIndex = weeklyDataFull.findIndex(item => item.date >= twoYearsAgo);
+            let weeklyData = weeklyDataFull.slice(weeklyStartIndex >= 0 ? weeklyStartIndex : 0);
+            let weeklyBB = {
+                ma: weeklyBBFull ? weeklyBBFull.ma.slice(weeklyStartIndex >= 0 ? weeklyStartIndex : 0) : [],
+                ma60: weeklyBBFull ? weeklyBBFull.ma60.slice(weeklyStartIndex >= 0 ? weeklyStartIndex : 0) : [],
+                upper: weeklyBBFull ? weeklyBBFull.upper.slice(weeklyStartIndex >= 0 ? weeklyStartIndex : 0) : [],
+                lower: weeklyBBFull ? weeklyBBFull.lower.slice(weeklyStartIndex >= 0 ? weeklyStartIndex : 0) : []
+            };
+            plotBollingerChart('weekly-chart', `${currentName} Weekly Chart`, weeklyData, weeklyBB, 'week', false);
+        }
+
+        async function selectTicker(ticker) {
+            // Initialize global variables
+            dailyDataFull = [];
+            weeklyDataFull = [];
+            dailyBBFull = null;
+            dailyRSIFull = [];
+            weeklyBBFull = null;
+            currentTicker = ticker;
+            const selected = tickerData.find(item => item.ticker === ticker);
+            currentName = selected ? selected.name : ticker;
+            highlightSelectedTicker(ticker);
+
+            dailyDataFull = await fetchStockData(ticker, '1d');
+            if (dailyDataFull.length === 0) {
+                weeklyDataFull = [];
+                dailyBBFull = null;
+                dailyRSIFull = [];
+                weeklyBBFull = null;
+                plotWithPeriod(currentPeriod);
+                return;
+            }
+
+            // Calculate data for valid ticker
+            weeklyDataFull = createWeeklyData(dailyDataFull);
+            dailyBBFull = calculateBollinger(dailyDataFull);
+            dailyRSIFull = calculateRSI(dailyDataFull);
+            weeklyBBFull = calculateBollinger(weeklyDataFull);
+            plotWithPeriod(currentPeriod);
+        }
+    </script>
+</body>
+</html>
