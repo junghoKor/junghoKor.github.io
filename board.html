@@ -19,7 +19,7 @@
     .entry-name { font-weight: bold; font-size: 15px; color: #fff; }
     .entry-controls { display: flex; gap: 6px; align-items: center; }
     .pw-input { width: 60px; background-color: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 4px; font-size: 12px; }
-    .entry-message { margin-top: 6px; font-size: 14px; line-height: 1.4; }
+    .entry-message { margin-top: 6px; font-size: 14px; line-height: 1.4; white-space: pre-wrap; }
     .pagination { margin-top: 20px; display: flex; gap: 6px; flex-wrap: wrap; }
     .pagination button { width: 28px; height: 28px; padding: 0; text-align: center; background-color: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px; cursor: pointer; font-size: 13px; }
     .pagination button:hover { background-color: #555; }
@@ -58,6 +58,7 @@
     let currentPage = 1;
     const entriesPerPage = 10;
 
+    // 작성
     window.submitEntry = () => {
       const name = document.getElementById('name').value.trim();
       const message = document.getElementById('message').value.trim();
@@ -77,20 +78,23 @@
         document.getElementById('name').value = '';
         document.getElementById('message').value = '';
         document.getElementById('password').value = '';
-      });
+      }).catch(err => console.error(err));
     };
 
+    // 실시간 감시 + 삭제된 글 완전 제외
     onValue(entriesRef, (snapshot) => {
       const data = snapshot.val() || {};
+
       allEntries = Object.entries(data)
         .map(([key, value]) => ({ key, ...value }))
-        .filter(entry => entry.name !== null && entry.message !== null)  // 삭제된 글 제외
+        // 삭제된 글은 완전히 제외 (name 또는 message가 null인 경우)
+        .filter(entry => entry.name && entry.message)
         .sort((a, b) => b.timestamp - a.timestamp);  // 최신순
 
-      currentPage = 1;
+      currentPage = 1;  // 새 글/삭제 시 첫 페이지로
       renderPage(currentPage);
       renderPagination();
-    });
+    }, { onlyOnce: false });  // 실시간 유지
 
     function renderPage(page) {
       const start = (page - 1) * entriesPerPage;
@@ -98,7 +102,7 @@
       const pageEntries = allEntries.slice(start, end);
 
       const container = document.getElementById('entries');
-      container.innerHTML = '';
+      container.innerHTML = '';  // 항상 깨끗하게 비우고 다시 그림
 
       pageEntries.forEach(entry => {
         const div = document.createElement('div');
@@ -121,7 +125,7 @@
       });
     }
 
-    // ★★★ 핵심: 삭제 시 입력한 비밀번호도 함께 전송 ★★★
+    // 삭제: 비밀번호를 함께 보내서 보안 규칙 통과
     window.deleteEntry = (key, button) => {
       const inputPw = button.previousElementSibling.value.trim();
 
@@ -137,10 +141,10 @@
         name: null,
         message: null,
         timestamp: null,
-        password: inputPw          // ← 이 줄이 반드시 있어야 보안 규칙이 작동합니다!
+        password: inputPw   // 이 줄이 핵심! 규칙 통과용
       })
       .then(() => {
-        alert("삭제되었습니다.");
+        // 삭제 성공 → 자동으로 onValue가 다시 실행되어 사라짐
       })
       .catch(() => {
         alert("비밀번호가 틀립니다.");
@@ -155,7 +159,7 @@
       for (let i = 1; i <= totalPages; i++) {
         const btn = document.createElement('button');
         btn.textContent = i;
-        btn.className = i === currentPage ? 'active' : '';
+        if (i === currentPage) btn.classList.add('active');
         btn.onclick = () => {
           currentPage = i;
           renderPage(i);
@@ -164,6 +168,9 @@
         container.appendChild(btn);
       }
     }
+
+    // 페이지 로드 시 바로 데이터 불러오기
+    // onValue가 자동으로 실행되므로 별도 호출 필요 없음
   </script>
 </body>
 </html>
