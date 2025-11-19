@@ -4,250 +4,154 @@
   <meta charset="UTF-8" />
   <title>방명록</title>
   <style>
-    body {
-      background-color: #121212;
-      color: #e0e0e0;
-      font-family: 'Segoe UI', sans-serif;
-      margin: 0;
-      padding: 20px;
-      position: relative;
-    }
-    h1 {
-      font-size: 20px;
-      margin-bottom: 20px;
-      color: #ffffff;
-    }
-    .entries-container {
-      width: 500px;
-    }
-    .form-container {
-      position: absolute;
-      left: 600px;
-      top: 20px;
-      background-color: #1e1e1e;
-      padding: 16px;
-      border-radius: 8px;
-      width: 260px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.4);
-    }
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      margin-bottom: 12px;
-    }
-    .form-group label {
-      font-size: 13px;
-      margin-bottom: 4px;
-      color: #ccc;
-    }
-    .form-group input,
-    .form-group textarea {
-      background-color: #2a2a2a;
-      border: 1px solid #444;
-      border-radius: 5px;
-      padding: 8px;
-      font-size: 13px;
-      color: #eee;
-    }
-    .form-group textarea {
-      resize: vertical;
-      min-height: 60px;
-    }
-    .form-container button {
-      background-color: #444;
-      color: #fff;
-      border: none;
-      padding: 8px 12px;
-      border-radius: 5px;
-      font-size: 14px;
-      cursor: pointer;
-      width: 100%;
-    }
-    .form-container button:hover {
-      background-color: #666;
-    }
-    .entry {
-      width: 500px;
-      margin-bottom: 16px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid #333;
-    }
-    .entry-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .entry-name {
-      font-weight: bold;
-      font-size: 15px;
-      color: #fff;
-    }
-    .entry-controls {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
-    .pw-input {
-      width: 60px;
-      background-color: #2a2a2a;
-      color: #eee;
-      border: 1px solid #444;
-      border-radius: 4px;
-      padding: 4px;
-      font-size: 12px;
-    }
-    .entry-message {
-      margin-top: 6px;
-      font-size: 14px;
-      line-height: 1.4;
-    }
-    .pagination {
-      margin-top: 20px;
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
-    .pagination button {
-      width: 28px;
-      height: 28px;
-      padding: 0;
-      text-align: center;
-      background-color: #2a2a2a;
-      color: #eee;
-      border: 1px solid #444;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 13px;
-    }
-    .pagination button:hover {
-      background-color: #555;
-    }
-    .pagination button.active {
-      background-color: #666;
-    }
+    body { background:#121212; color:#e0e0e0; font-family:'Malgun Gothic',sans-serif; margin:0; padding:20px; }
+    h1 { font-size:22px; color:#fff; margin-bottom:24px; text-align:center; }
+    .container { max-width:560px; margin:0 auto; position:relative; }
+    .form-box { background:#1e1e1e; padding:20px; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,0.6); margin-bottom:40px; }
+    label { display:block; margin:12px 0 6px; font-size:14px; color:#ccc; }
+    input, textarea { width:100%; background:#2a2a2a; border:1px solid #444; border-radius:8px; padding:10px; color:#eee; font-size:14px; box-sizing:border-box; }
+    textarea { min-height:90px; resize:vertical; }
+    button { margin-top:12px; padding:12px; width:100%; background:#555; color:#fff; border:none; border-radius:8px; font-size:15px; cursor:pointer; }
+    button:hover { background:#777; }
+    .entry { background:#1a1a1a; padding:16px; border-radius:10px; margin-bottom:14px; border-left:4px solid #555; }
+    .header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+    .name { font-weight:bold; color:#fff; font-size:15px; }
+    .controls { display:flex; gap:6px; align-items:center; }
+    .pw { width:80px; padding:5px; font-size:12px; background:#333; border:1px solid #555; border-radius:4px; color:#fff; }
+    .del { background:#c62828; color:white; border:none; padding:5px 10px; border-radius:5px; font-size:12px; cursor:pointer; }
+    .del:hover { background:#e53935; }
+    .message { font-size:14.5px; line-height:1.55; white-space:pre-wrap; word-break:break-word; }
+    .pagination { text-align:center; margin:30px 0; }
+    .pagination button { background:#2a2a2a; color:#eee; border:1px solid #444; width:36px; height:36px; margin:0 4px; border-radius:6px; cursor:pointer; font-size:13px; }
+    .pagination button:hover { background:#444; }
+    .pagination button.active { background:#666; border-color:#888; }
+    .info { font-size:13px; color:#888; text-align:center; margin-top:50px; }
   </style>
 </head>
 <body>
-  <div class="entries-container">
-    <h1>방명록</h1>
-    <div id="entries"></div>
-    <div class="pagination" id="pagination"></div>
+
+<div class="container">
+  <h1>방명록</h1>
+
+  <div class="form-box">
+    <label>별명</label>
+    <input type="text" id="name" placeholder="예: 홍길동" maxlength="20" />
+    
+    <label>남기고 싶은 말</label>
+    <textarea id="message" placeholder="따뜻한 한마디 부탁드려요" maxlength="300"></textarea>
+    
+    <label>비밀번호 (삭제 시 필요)</label>
+    <input type="password" id="password" placeholder="4~20자, 꼭 기억하세요!" maxlength="20" />
+    
+    <button onclick="submitEntry()">방명록 남기기</button>
   </div>
 
-  <div class="form-container">
-    <div class="form-group">
-      <label for="name">별명</label>
-      <input type="text" id="name" placeholder="예: 홍길동" />
-    </div>
-    <div class="form-group">
-      <label for="message">내용</label>
-      <textarea id="message" placeholder="방명록 메시지를 입력하세요"></textarea>
-    </div>
-    <div class="form-group">
-      <label for="password">비밀번호</label>
-      <input type="password" id="password" placeholder="삭제 시 필요한 비밀번호" />
-    </div>
-    <button onclick="submitEntry()">등록</button>
-  </div>
+  <div id="entries"></div>
+  <div class="pagination" id="pagination"></div>
+  <div class="info">현재 <span id="total">0</span>개의 방명록이 있습니다</div>
+</div>
 
-  <script type="module">
-    import { db, ref, push, update, remove, onValue } from './guestbook_cdn.js';
+<script type="module">
+  import { db, ref, push, remove, onValue } from './guestbook_cdn.js';
 
-    const entriesRef = ref(db, 'guestbook');
-    let allEntries = [];
-    let currentPage = 1;
-    const entriesPerPage = 10;
+  const entriesRef = ref(db, 'guestbook');
+  let allEntries = [];
+  let currentPage = 1;
+  const perPage = 10;
 
-    window.submitEntry = () => {
-      const name = document.getElementById('name').value.trim();
-      const message = document.getElementById('message').value.trim();
-      const password = document.getElementById('password').value.trim();
+  window.submitEntry = () => {
+    const name = document.getElementById('name').value.trim();
+    const message = document.getElementById('message').value.trim();
+    const password = document.getElementById('password').value;
 
-      if (!name || !message || !password) {
-        alert("별명, 내용, 비밀번호를 모두 입력해주세요.");
-        return;
-      }
+    if (!name || !message || password.length < 4) {
+      alert('모든 항목을 올바르게 입력해주세요.\n비밀번호는 4자 이상이어야 합니다.');
+      return;
+    }
 
-      push(entriesRef, { name, message, password });
-      document.getElementById('name').value = '';
-      document.getElementById('message').value = '';
-      document.getElementById('password').value = '';
-    };
+    push(entriesRef, { name, message, password, timestamp: Date.now() })
+      .then(() => {
+        document.getElementById('name').value = '';
+        document.getElementById('message').value = '';
+        document.getElementById('password').value = '';
+      })
+      .catch(() => alert('작성에 실패했습니다. 다시 시도해주세요.'));
+  };
 
-    onValue(entriesRef, (snapshot) => {
-      const data = snapshot.val();
-      allEntries = [];
-      for (const key in data) {
-        allEntries.push({ key, ...data[key] });
-      }
-      allEntries.reverse();
-      renderPage(currentPage);
-      renderPagination();
+  onValue(entriesRef, (snap) => {
+    const data = snap.val() || {};
+    allEntries = Object.entries(data)
+      .map(([key, value]) => ({ key, ...value }))
+      .sort((a, b) => b.timestamp - a.timestamp);
+
+    document.getElementById('total').textContent = allEntries.length;
+    render();
+  });
+
+  function render() {
+    const start = (currentPage - 1) * perPage;
+    const pageData = allEntries.slice(start, start + perPage);
+
+    const container = document.getElementById('entries');
+    container.innerHTML = '';
+
+    pageData.forEach(entry => {
+      const div = document.createElement('div');
+      div.className = 'entry';
+      div.innerHTML = `
+        <div class="header">
+          <div class="name"></div>
+          <div class="controls">
+            <input type="password" class="pw" placeholder="비밀번호" autocomplete="off" />
+            <button class="del">삭제</button>
+          </div>
+        </div>
+        <div class="message"></div>
+      `;
+
+      div.querySelector('.name').textContent = entry.name;
+      div.querySelector('.message').textContent = entry.message;
+
+      div.querySelector('.del').onclick = () => {
+        const inputPw = div.querySelector('.pw').value.trim();
+        if (!inputPw) return alert('비밀번호를 입력해주세요.');
+
+        if (!confirm('정말로 삭제하시겠습니까?')) return;
+
+        const entryRef = ref(db, `guestbook/${entry.key}`);
+        remove(entryRef)
+          .then(() => {
+            alert('삭제되었습니다.');
+          })
+          .catch(() => {
+            alert('비밀번호가 틀립니다.');
+          });
+      };
+
+      container.appendChild(div);
     });
 
-    function renderPage(page) {
-      const start = (page - 1) * entriesPerPage;
-      const end = start + entriesPerPage;
-      const entries = allEntries.slice(start, end);
-
-      const container = document.getElementById('entries');
-      container.innerHTML = '';
-
-      entries.forEach(entry => {
-        const div = document.createElement('div');
-        div.className = 'entry';
-        div.innerHTML = `
-          <div class="entry-header">
-            <div class="entry-name">${entry.name}</div>
-            <div class="entry-controls">
-              <input type="password" id="pw-${entry.key}" class="pw-input" placeholder="PW" />
-              <button onclick="deleteEntry('${entry.key}')">삭제</button>
-            </div>
-          </div>
-          <div class="entry-message">${entry.message}</div>
-        `;
-        container.appendChild(div);
-      });
-    }
-
-    function renderPagination() {
-      const totalPages = Math.ceil(allEntries.length / entriesPerPage);
-      const container = document.getElementById('pagination');
-      container.innerHTML = '';
-
-      for (let i = 1; i <= totalPages; i++) {
-        const btn = document.createElement('button');
-        btn.textContent = i;
-        btn.className = i === currentPage ? 'active' : '';
-        btn.onclick = () => {
-          currentPage = i;
-          renderPage(i);
-          renderPagination();
-        };
-        container.appendChild(btn);
-      }
-    }
-
-window.deleteEntry = (key) => {
-  const inputPw = document.getElementById(`pw-${key}`).value.trim();
-  if (!inputPw) {
-    alert("비밀번호를 입력해주세요.");
-    return;
+    renderPagination();
   }
 
-  const entryRef = ref(db, `guestbook/${key}`);
+  function renderPagination() {
+    const totalPages = Math.ceil(allEntries.length / perPage) || 1;
+    const el = document.getElementById('pagination');
+    el.innerHTML = '';
 
-  update(entryRef, {
-    name: null,
-    message: null,
-    password: inputPw
-  })
-    .then(() => alert("삭제되었습니다."))
-    .catch(() => alert("비밀번호가 틀렸거나 삭제 권한이 없습니다."));
-};
-
+    for (let i = 1; i <= totalPages; i++) {
+      const btn = document.createElement('button');
+      btn.textContent = i;
+      if (i === currentPage) btn.classList.add('active');
+      btn.onclick = () => {
+        currentPage = i;
+        render();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      };
+      el.appendChild(btn);
+    }
+  }
 </script>
+
 </body>
 </html>
-
-
