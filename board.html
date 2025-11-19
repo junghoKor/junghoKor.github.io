@@ -37,7 +37,7 @@
   <div class="form-container">
     <div class="form-group">
       <label for="name">별명</label>
-      <input type="text" id="name" placeholder="홍길동" />
+      <input type="text" id="name" placeholder="예: 홍길동" />
     </div>
     <div class="form-group">
       <label for="message">내용</label>
@@ -84,11 +84,10 @@
       const data = snapshot.val() || {};
       allEntries = Object.entries(data)
         .map(([key, value]) => ({ key, ...value }))
-        // 삭제된 글 (name 또는 message가 null)은 표시 안 함
-        .filter(entry => entry.name !== null && entry.message !== null)
+        .filter(entry => entry.name !== null && entry.message !== null)  // 삭제된 글 제외
         .sort((a, b) => b.timestamp - a.timestamp);  // 최신순
 
-      currentPage = 1;  // 새 글이 추가되면 첫 페이지로
+      currentPage = 1;
       renderPage(currentPage);
       renderPagination();
     });
@@ -115,7 +114,6 @@
           <div class="entry-message"></div>
         `;
 
-        // XSS 완전 방어
         div.querySelector('.entry-name').textContent = entry.name;
         div.querySelector('.entry-message').textContent = entry.message;
 
@@ -123,6 +121,7 @@
       });
     }
 
+    // ★★★ 핵심: 삭제 시 입력한 비밀번호도 함께 전송 ★★★
     window.deleteEntry = (key, button) => {
       const inputPw = button.previousElementSibling.value.trim();
 
@@ -134,11 +133,11 @@
 
       const entryRef = ref(db, `guestbook/${key}`);
 
-      // password는 그대로 두고 name, message, timestamp만 null로 → 규칙 통과
       update(entryRef, {
         name: null,
         message: null,
-        timestamp: null
+        timestamp: null,
+        password: inputPw          // ← 이 줄이 반드시 있어야 보안 규칙이 작동합니다!
       })
       .then(() => {
         alert("삭제되었습니다.");
