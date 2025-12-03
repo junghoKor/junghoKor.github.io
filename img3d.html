@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Protected 3D Image Analyzer</title>
+    
+    <script>
+        // 1. 마우스 우측 버튼 클릭 금지
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            return false;
+        });
+
+        // 2. 키보드 단축키 차단 (F12, Ctrl+Shift+I, Ctrl+U 등)
+        document.addEventListener('keydown', function(e) {
+            // F12 키
+            if (e.keyCode === 123) {
+                e.preventDefault();
+                e.returnValue = false;
+                return false;
+            }
+
+            // Ctrl+Shift+I (검사), Ctrl+Shift+J (콘솔), Ctrl+Shift+C (요소 선택)
+            if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) {
+                e.preventDefault();
+                e.returnValue = false;
+                return false;
+            }
+
+            // Ctrl+U (소스 보기)
+            if (e.ctrlKey && e.keyCode === 85) {
+                e.preventDefault();
+                e.returnValue = false;
+                return false;
+            }
+
+            // Ctrl+S (저장) - 선택 사항
+            if (e.ctrlKey && e.keyCode === 83) {
+                e.preventDefault();
+                e.returnValue = false;
+                return false;
+            }
+        });
+    </script>
+    <style>
+        /* 드래그 방지 (선택 사항: 텍스트 긁기 방지) */
+        body { 
+            margin: 0; overflow: hidden; background-color: #1e1e1e; font-family: 'Segoe UI', sans-serif; color: #ccc; font-size: 13px;
+            user-select: none; /* 텍스트 선택 방지 */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+        
+        #container { display: flex; width: 100vw; height: 100vh; }
+        #canvas-container { flex: 1; position: relative; background: #000; overflow: hidden; }
+        
+        #preview-overlay {
+            position: absolute; top: 10px; left: 10px;
+            width: 400px; height: auto;
+            border: 1px solid #444; background-color: #000;
+            z-index: 100; display: none;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5); pointer-events: none;
+        }
+        #preview-label {
+            position: absolute; top: 10px; left: 10px;
+            background: rgba(0, 0, 0, 0.7); color: #007acc;
+            padding: 2px 5px; font-size: 11px; font-weight: bold;
+            z-index: 101; display: none; pointer-events: none;
+        }
+
+        #sidebar { 
+            width: 300px; background: #252526; border-left: 1px solid #3e3e42; 
+            display: flex; flex-direction: column; padding: 15px; box-sizing: border-box; 
+            z-index: 10; 
+            overflow-y: auto; 
+            overflow-x: hidden;
+        }
+
+        h3 { margin: 0 0 15px 0; font-size: 1.1rem; color: #fff; border-bottom: 1px solid #3e3e42; padding-bottom: 8px; }
+        h4 { margin: 15px 0 8px 0; font-size: 0.85rem; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; border-top: 1px solid #333; padding-top: 10px; }
+        h4:first-of-type { border-top: none; padding-top: 0; margin-top: 5px; }
+
+        #drop-zone {
+            width: 100%; height: 120px;
+            border: 1px dashed #007acc; border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            text-align: center; color: #888; margin-bottom: 15px;
+            transition: background 0.3s; cursor: pointer; flex-shrink: 0; font-size: 0.9rem;
+        }
+        #drop-zone.dragover { background: rgba(0, 122, 204, 0.1); border-color: #fff; }
+
+        .control-group { margin-bottom: 10px; width: 100%; }
+        label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; font-weight: 600; font-size: 0.8rem; color: #ddd; }
+        
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: #007acc; height: 4px; margin: 4px 0; }
+        input[type="checkbox"] { cursor: pointer; accent-color: #007acc; margin: 0 6px 0 0; }
+        
+        #slider-light-color {
+            background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+            border-radius: 3px; height: 4px; -webkit-appearance: none;
+        }
+        #slider-light-color::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+            background: #fff; border: 1px solid #555; cursor: pointer;
+        }
+
+        .channel-row { display: flex; align-items: center; margin-bottom: 4px; font-size: 0.8rem; }
+        .channel-row input[type="checkbox"] { margin-right: 6px; }
+        .channel-row span.ch-label { width: 35px; font-weight: bold; }
+        .channel-row input[type="range"] { flex: 1; margin: 0 8px; }
+        .channel-row span.val-display { width: 30px; text-align: right; font-family: monospace; color: #007acc; font-size: 0.8rem; }
+
+        .red-text { color: #ff6b6b; }
+        .green-text { color: #51cf66; }
+        .blue-text { color: #339af0; }
+        .value-display { font-weight: normal; color: #007acc; font-size: 0.8rem; }
+        
+        .checkbox-row {
+            display: flex; align-items: center; justify-content: flex-start;
+            margin-bottom: 5px; font-size: 0.85rem; cursor: pointer;
+        }
+
+        button {
+            width: 100%; padding: 8px; background: #007acc; color: white;
+            border: none; border-radius: 3px; cursor: pointer; font-size: 0.9rem; margin-top: 15px;
+        }
+        button:hover { background: #005a9e; }
+        
+        .info { font-size: 0.75rem; color: #666; margin-top: auto; padding-top: 15px; }
+    </style>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+<div id="container">
+    <div id="canvas-container">
+        <div id="preview-label">Original</div>
+        <img id="preview-overlay" src="" alt="Original Image">
+    </div>
+
+    <div id="sidebar">
+        <h3>Image Analyzer</h3>
+        <div id="drop-zone">Drop Image Here</div>
+        
+        <h4>1. Pre-Processing</h4>
+        
+        <div class="control-group">
+            <label>Channel Mixer (-255~255)</label>
+            <div class="channel-row">
+                <input type="checkbox" id="chk-red" checked>
+                <span class="ch-label red-text">R</span>
+                <input type="range" id="slider-red" min="-255" max="255" step="1" value="0">
+                <span id="val-red" class="val-display">0</span>
+            </div>
+            <div class="channel-row">
+                <input type="checkbox" id="chk-green" checked>
+                <span class="ch-label green-text">G</span>
+                <input type="range" id="slider-green" min="-255" max="255" step="1" value="0">
+                <span id="val-green" class="val-display">0</span>
+            </div>
+            <div class="channel-row">
+                <input type="checkbox" id="chk-blue" checked>
+                <span class="ch-label blue-text">B</span>
+                <input type="range" id="slider-blue" min="-255" max="255" step="1" value="0">
+                <span id="val-blue" class="val-display">0</span>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Gaussian Blur <span id="val-blur" class="value-display">0 px</span></label>
+            <input type="range" id="input-blur" min="0" max="20" step="0.5" value="0">
+        </div>
+
+        <h4>2. Geometry</h4>
+        <div class="control-group">
+            <label>Height Scale <span id="val-height" class="value-display">30</span></label>
+            <input type="range" id="input-height" min="0" max="150" step="1" value="30">
+        </div>
+        <div class="control-group">
+            <label class="checkbox-row">
+                <input type="checkbox" id="input-invert">
+                Invert Height
+            </label>
+        </div>
+        <div class="control-group">
+            <label>Segments <span id="val-seg" class="value-display">256</span></label>
+            <input type="range" id="input-seg" min="64" max="512" step="32" value="256">
+        </div>
+
+        <h4>3. Atmosphere</h4>
+        <div class="control-group">
+            <label class="checkbox-row">
+                <input type="checkbox" id="chk-light">
+                Atmosphere Light ON
+            </label>
+        </div>
+        <div class="control-group">
+            <label>Light Hue</label>
+            <input type="range" id="slider-light-color" min="0" max="360" value="0">
+        </div>
+
+        <button id="btn-reset">Reset View</button>
+        <div class="info"><p>JunghoKor's Web image3D</p></div>
+    </div>
+</div>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    let mesh;
+    let originalImage = null; 
+    
+    const colorCanvas = document.createElement('canvas');
+    const colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
+    const heightCanvas = document.createElement('canvas');
+    const heightCtx = heightCanvas.getContext('2d', { willReadFrequently: true });
+
+    // === UI Elements ===
+    const els = {
+        blur: document.getElementById('input-blur'),
+        height: document.getElementById('input-height'),
+        invert: document.getElementById('input-invert'),
+        seg: document.getElementById('input-seg'),
+        
+        redChk: document.getElementById('chk-red'),
+        redSlider: document.getElementById('slider-red'),
+        greenChk: document.getElementById('chk-green'),
+        greenSlider: document.getElementById('slider-green'),
+        blueChk: document.getElementById('chk-blue'),
+        blueSlider: document.getElementById('slider-blue'),
+
+        valBlur: document.getElementById('val-blur'),
+        valHeight: document.getElementById('val-height'),
+        valSeg: document.getElementById('val-seg'),
+        valRed: document.getElementById('val-red'),
+        valGreen: document.getElementById('val-green'),
+        valBlue: document.getElementById('val-blue'),
+        
+        chkLight: document.getElementById('chk-light'),
+        sliderLightColor: document.getElementById('slider-light-color'),
+
+        previewImg: document.getElementById('preview-overlay'),
+        previewLabel: document.getElementById('preview-label')
+    };
+
+    // === Three.js Setup ===
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x111111);
+
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 10000);
+    camera.position.set(0, -120, 120);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0, 0); 
+    controls.enableDamping = true;
+    controls.update();
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 2.5);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 4.0); 
+    dirLight.position.set(50, 50, 100); 
+    dirLight.visible = false; 
+    scene.add(dirLight);
+
+    createMesh(256);
+
+    // === Logic ===
+    function updateLighting() {
+        const isLightOn = els.chkLight.checked;
+        dirLight.visible = isLightOn;
+
+        if (isLightOn) {
+            ambientLight.intensity = 0.5;
+            const hue = parseInt(els.sliderLightColor.value);
+            dirLight.color.setHSL(hue / 360, 1.0, 0.6); 
+        } else {
+            ambientLight.intensity = 2.5; 
+        }
+    }
+
+    function processAndApplyTexture() {
+        if (!originalImage) return;
+
+        const w = originalImage.width;
+        const h = originalImage.height;
+
+        colorCanvas.width = w; colorCanvas.height = h;
+        heightCanvas.width = w; heightCanvas.height = h;
+
+        colorCtx.filter = 'none';
+        colorCtx.drawImage(originalImage, 0, 0, w, h);
+
+        const imgData = colorCtx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+        const heightData = new Uint8ClampedArray(data.length);
+
+        const getMultiplier = (chk, slider) => {
+            if (!chk.checked) return 0;
+            return (parseInt(slider.value) + 255) / 255;
+        };
+
+        const rMult = getMultiplier(els.redChk, els.redSlider);
+        const gMult = getMultiplier(els.greenChk, els.greenSlider);
+        const bMult = getMultiplier(els.blueChk, els.blueSlider);
+        const isInverted = els.invert.checked;
+
+        for (let i = 0; i < data.length; i += 4) {
+            let r = Math.min(255, Math.max(0, data[i] * rMult));
+            let g = Math.min(255, Math.max(0, data[i + 1] * gMult));
+            let b = Math.min(255, Math.max(0, data[i + 2] * bMult));
+
+            data[i] = r; data[i + 1] = g; data[i + 2] = b;
+
+            const avg = (r + g + b) / 3;
+            const heightVal = isInverted ? (255 - avg) : avg;
+
+            heightData[i] = heightVal; heightData[i + 1] = heightVal; heightData[i + 2] = heightVal; heightData[i + 3] = 255;
+        }
+
+        colorCtx.putImageData(imgData, 0, 0);
+        const heightImageData = new ImageData(heightData, w, h);
+        heightCtx.putImageData(heightImageData, 0, 0);
+
+        const blurAmount = parseFloat(els.blur.value);
+        if (blurAmount > 0) {
+            applyBlur(blurAmount);
+        } else {
+            updateMaterial();
+        }
+    }
+
+    function applyBlur(amount) {
+        Promise.all([createImageBitmap(colorCanvas), createImageBitmap(heightCanvas)])
+        .then(([cB, hB]) => {
+            colorCtx.filter = `blur(${amount}px)`; colorCtx.drawImage(cB, 0, 0);
+            heightCtx.filter = `blur(${amount}px)`; heightCtx.drawImage(hB, 0, 0);
+            updateMaterial();
+        });
+    }
+
+    function updateMaterial() {
+        if (!mesh) return;
+        const colorTex = new THREE.CanvasTexture(colorCanvas);
+        colorTex.minFilter = THREE.LinearFilter; colorTex.magFilter = THREE.LinearFilter;
+        const heightTex = new THREE.CanvasTexture(heightCanvas);
+        heightTex.minFilter = THREE.LinearFilter; heightTex.magFilter = THREE.LinearFilter;
+        
+        mesh.material.map = colorTex;
+        mesh.material.displacementMap = heightTex;
+        mesh.material.needsUpdate = true;
+        
+        if(originalImage) adjustAspectRatio(originalImage.width, originalImage.height);
+    }
+
+    function createMesh(segments) {
+        if (mesh) {
+            scene.remove(mesh);
+            mesh.geometry.dispose();
+            mesh.material.dispose();
+        }
+        const geometry = new THREE.PlaneGeometry(100, 100, segments, segments);
+        
+        const material = new THREE.MeshStandardMaterial({
+            side: THREE.DoubleSide,
+            displacementScale: parseFloat(els.height.value),
+            color: 0xffffff, 
+            roughness: 0.5, 
+            metalness: 0.1
+        });
+        mesh = new THREE.Mesh(geometry, material);
+        mesh.position.x = 10; // 물체를 우측으로 20 이동
+        scene.add(mesh);
+        if (originalImage) processAndApplyTexture();
+    }
+
+    function adjustAspectRatio(imgW, imgH) {
+        if (!mesh) return;
+        const aspect = imgW / imgH;
+        const baseSize = 100;
+        mesh.geometry.dispose();
+        let w, h;
+        if (aspect >= 1) { w = baseSize; h = baseSize / aspect; } 
+        else { w = baseSize * aspect; h = baseSize; }
+        const segments = parseInt(els.seg.value);
+        mesh.geometry = new THREE.PlaneGeometry(w, h, segments, segments);
+    }
+
+    function resetSettings() {
+        els.redChk.checked = true; els.greenChk.checked = true; els.blueChk.checked = true;
+        els.redSlider.value = 0; els.greenSlider.value = 0; els.blueSlider.value = 0;
+        els.blur.value = 0; els.height.value = 30; els.seg.value = 256;
+        els.invert.checked = false;
+        
+        els.chkLight.checked = false; 
+        els.sliderLightColor.value = 0; 
+
+        els.valRed.textContent = "0"; els.valGreen.textContent = "0"; els.valBlue.textContent = "0";
+        els.valBlur.textContent = "0 px"; els.valHeight.textContent = "30"; els.valSeg.textContent = "256";
+
+        updateLighting();
+        
+        controls.reset();
+        camera.position.set(0, -120, 120);
+        controls.target.set(0, 0, 0);
+        controls.update();
+
+        createMesh(256);
+        processAndApplyTexture();
+    }
+
+    // === Event Listeners ===
+    [els.redChk, els.greenChk, els.blueChk, els.invert].forEach(el => el.addEventListener('change', processAndApplyTexture));
+    
+    const updateSliderLabel = (slider, label) => {
+        slider.addEventListener('input', (e) => {
+            label.textContent = e.target.value;
+            processAndApplyTexture();
+        });
+    };
+    updateSliderLabel(els.redSlider, els.valRed);
+    updateSliderLabel(els.greenSlider, els.valGreen);
+    updateSliderLabel(els.blueSlider, els.valBlue);
+
+    els.blur.addEventListener('input', (e) => {
+        els.valBlur.textContent = e.target.value + ' px';
+        processAndApplyTexture();
+    });
+    els.height.addEventListener('input', (e) => {
+        els.valHeight.textContent = e.target.value;
+        if (mesh) mesh.material.displacementScale = parseFloat(e.target.value);
+    });
+    els.seg.addEventListener('change', (e) => {
+        els.valSeg.textContent = e.target.value;
+        createMesh(parseInt(e.target.value));
+    });
+
+    els.chkLight.addEventListener('change', updateLighting);
+    els.sliderLightColor.addEventListener('input', updateLighting);
+
+    document.getElementById('btn-reset').addEventListener('click', resetSettings);
+
+    const dropZone = document.getElementById('drop-zone');
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+        dropZone.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
+    });
+    dropZone.addEventListener('dragover', () => dropZone.classList.add('dragover'));
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    
+    dropZone.addEventListener('drop', (e) => {
+        dropZone.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const img = new Image();
+                img.onload = function() {
+                    originalImage = img;
+                    dropZone.textContent = file.name;
+                    els.previewImg.src = img.src;
+                    els.previewImg.style.display = 'block';
+                    els.previewLabel.style.display = 'block';
+                    resetSettings();
+                };
+                img.src = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    window.addEventListener('resize', () => {
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+
+</script>
+</body>
+</html>
